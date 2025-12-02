@@ -19,6 +19,14 @@ from gemini_api import get_oracle
 from game_modes import GameSession, InitialsInput, MODE_CLASSIC, MODE_SURVIVAL
 from audio import init_audio, play as play_sound
 
+# Sistema OTA
+try:
+    from ota_update import ota_manager, reboot as ota_reboot
+    OTA_AVAILABLE = True
+except ImportError:
+    OTA_AVAILABLE = False
+    print("[MAIN] OTA no disponible")
+
 # Hardware
 from i2c_lcd import I2cLcd
 
@@ -70,6 +78,11 @@ class State:
     CREDITS = 21
     PAUSE = 22
     ERROR = 23
+    # OTA Updates
+    OTA_CHECK = 24
+    OTA_INFO = 25
+    OTA_UPDATING = 26
+    OTA_RESULT = 27
 
 # ============================================================================
 # CLASE PRINCIPAL
@@ -409,7 +422,16 @@ class PsicOTronic:
     
     def _update_menu(self, key):
         """Estado: Menú principal"""
-        options = ["Jugar", "Estadísticas", "Cómo Jugar", "WiFi", "Créditos"]
+        options = ["Jugar", "Estadisticas", "Como Jugar", "WiFi"]
+        
+        # Añadir opción OTA si está disponible
+        if OTA_AVAILABLE:
+            if ota_manager.has_update():
+                options.append("Actualizar [!]")
+            else:
+                options.append("Actualizar")
+        
+        options.append("Creditos")
         
         self._lcd_clear()
         self._lcd_centered(0, "== MENU ==")
@@ -420,7 +442,7 @@ class PsicOTronic:
             idx = start + i
             if idx < len(options):
                 prefix = ">" if idx == self.menu_idx else " "
-                self._lcd_put(1, i + 1, f"{prefix}{options[idx]}")
+                self._lcd_put(1, i + 1, prefix + options[idx][:18])
         
         self._leds_menu()
         
@@ -432,17 +454,21 @@ class PsicOTronic:
             play_sound('click')
         elif key == 'SELECT':
             play_sound('beep')
-            if self.menu_idx == 0:  # Jugar
+            selected = options[self.menu_idx]
+            if selected == "Jugar":
                 self.state = State.MODE_SELECT
                 self.mode_idx = 0
-            elif self.menu_idx == 1:  # Estadísticas
+            elif selected == "Estadisticas":
                 self.state = State.STATS
-            elif self.menu_idx == 2:  # Cómo Jugar
+            elif selected == "Como Jugar":
                 self.state = State.HOW_TO_PLAY
                 self.help_page = 0
-            elif self.menu_idx == 3:  # WiFi
+            elif selected == "WiFi":
                 self.state = State.WIFI_SETTINGS
-            elif self.menu_idx == 4:  # Créditos
+            elif selected.startswith("Actualizar"):
+                self.state = State.OTA_CHECK
+                self.frame = 0
+            elif selected == "Creditos":
                 self.state = State.CREDITS
     
     def _update_mode_select(self, key):
@@ -1107,6 +1133,134 @@ class PsicOTronic:
                 self.error_menu_idx = 0
                 self.state = State.MENU
     
+    # === OTA UPDATES ===
+    
+    def _update_ota_check(self, key):
+        """Verificar actualizaciones"""
+        self._lcd_clear()
+        
+        if not OTA_AVAILABLE:
+            self._lcd_centered(0, "OTA")
+            self._lcd_centered(1, "No disponible")
+            self._lcd_centered(3, "[OK] Volver")
+            self._leds_select_only()
+            if key == 'SELECT':
+                self.state = State.MENU
+            return
+        
+        # Animación
+        dots = "." * ((self.frame // 5) % 4)
+        self._lcd_centered(0, "ACTUALIZACIONES")
+        self._lcd_centered(1, "Verificando" + dots)
+        self._lcd_centered(2, "Conectando...")
+        
+        self._leds_off()
+        
+        # Verificar en frame 1
+        if self.frame == 1:
+            def status_cb(msg):
+                pass
+            ota_manager.check_async(status_cb)
+        
+        # Mostrar resultado después
+        if self.frame > 20:
+            self.state = State.OTA_INFO
+    
+    def _update_ota_info(self, key):
+        """Info de actualización"""
+        self._lcd_clear()
+        
+        if not OTA_AVAILABLE:
+            self.state = State.MENU
+            return
+        
+        current_ver = ota_manager.get_current_version()
+        
+        if ota_manager.has_update():
+            info = ota_manager.get_update_info()
+            new_ver = info.get("new_version", "?")
+            num_files = len(info.get("files", []))
+            
+            self._lcd_centered(0, "UPDATE DISPONIBLE!")
+            self._lcd_put(0, 1, "v" + current_ver + " -> v" + new_ver)
+            self._lcd_put(0, 2, str(num_files) + " archivos")
+            self._lcd_put(0, 3, "[OK]Instalar [^]No")
+            
+            self._leds_scroll(True, False)
+            
+            if key == 'SELECT':
+                self.state = State.OTA_UPDATING
+                self.frame = 0
+            elif key == 'UP':
+                self.state = State.MENU
+        else:
+            self._lcd_centered(0, "SIN ACTUALIZACIONES")
+            self._lcd_centered(1, "Version actual:")
+            self._lcd_centered(2, "v" + current_ver)
+            self._lcd_centered(3, "[OK] Volver")
+            
+            self._leds_select_only()
+            
+            if key == 'SELECT':
+                self.state = State.MENU
+    
+    def _update_ota_updating(self, key):
+        """Proceso de actualización"""
+        self._lcd_clear()
+        
+        # Animación
+        spinner = ["|", "/", "-", "\\"][self.frame % 4]
+        
+        self._lcd_centered(0, "ACTUALIZANDO " + spinner)
+        self._lcd_centered(1, ota_manager.status_msg[:20])
+        self._lcd_centered(3, "No desconectar!")
+        
+        self._leds_off()
+        
+        # Ejecutar en frame 1
+        if self.frame == 1:
+            def progress_cb(msg):
+                pass
+            
+            success, msg = ota_manager.perform_update(progress_cb)
+            self._ota_success = success
+            self._ota_result_msg = msg
+            self.state = State.OTA_RESULT
+            self.frame = 0
+    
+    def _update_ota_result(self, key):
+        """Resultado de actualización"""
+        self._lcd_clear()
+        
+        success = getattr(self, '_ota_success', False)
+        msg = getattr(self, '_ota_result_msg', "")
+        
+        if success:
+            self._lcd_centered(0, "ACTUALIZADO!")
+            self._lcd_centered(1, msg[:20])
+            self._lcd_centered(2, "Reiniciar ahora?")
+            self._lcd_put(0, 3, "[OK]Si  [^]Despues")
+            
+            self._leds_scroll(True, False)
+            
+            if key == 'SELECT':
+                self._lcd_clear()
+                self._lcd_centered(1, "Reiniciando...")
+                self._lcd_render()
+                time.sleep(1)
+                ota_reboot()
+            elif key == 'UP':
+                self.state = State.MENU
+        else:
+            self._lcd_centered(0, "ERROR UPDATE")
+            self._lcd_centered(1, msg[:20])
+            self._lcd_centered(3, "[OK] Volver")
+            
+            self._leds_select_only()
+            
+            if key == 'SELECT':
+                self.state = State.MENU
+    
     # === LOOP PRINCIPAL ===
     
     def run(self):
@@ -1136,6 +1290,10 @@ class PsicOTronic:
             State.CREDITS: self._update_credits,
             State.PAUSE: self._update_pause,
             State.ERROR: self._update_error,
+            State.OTA_CHECK: self._update_ota_check,
+            State.OTA_INFO: self._update_ota_info,
+            State.OTA_UPDATING: self._update_ota_updating,
+            State.OTA_RESULT: self._update_ota_result,
         }
         
         while True:

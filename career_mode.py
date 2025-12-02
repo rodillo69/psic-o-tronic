@@ -893,7 +893,6 @@ class CareerMode:
         opciones.append(("stats", "Estadisticas"))
         opciones.append(("opciones", "Opciones"))
         opciones.append(("ayuda", "Ayuda"))
-        opciones.append(("portal", "Portal WiFi"))
         opciones.append(("volver", "Volver"))
         opciones.append(("salir", "Salir"))
         
@@ -970,8 +969,6 @@ class CareerMode:
             elif accion == "ayuda":
                 self._tutorial_page = 0
                 self.state = CareerState.AYUDA
-            elif accion == "portal":
-                self.state = CareerState.PORTAL_WIFI
             elif accion == "volver":
                 self.state = CareerState.SCREENSAVER
                 self.scroll_idx = 0
@@ -3440,7 +3437,7 @@ class CareerMode:
         self.state = CareerState.MENU_PRINCIPAL
         self.menu_idx = 0
         self.scroll_idx = 0
-    
+
     # === PANTALLA DE ERROR ===
     
     def _update_error(self, key):
