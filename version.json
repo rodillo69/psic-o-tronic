@@ -1,0 +1,26 @@
+{
+    "version": "1.0.0",
+    "changelog": "Version inicial",
+    "mandatory": false,
+    "size_kb": 120,
+    "files": [
+        "main.py",
+        "career_mode.py",
+        "career_data.py",
+        "career_patients.py",
+        "career_scheduler.py",
+        "career_systems.py",
+        "game_modes.py",
+        "gemini_api.py",
+        "wifi_portal.py",
+        "ota_update.py",
+        "error_handler.py",
+        "config.py",
+        "audio.py",
+        "ui_renderer.py",
+        "lcd_chars.py",
+        "lcd_api.py",
+        "i2c_lcd.py",
+        "ntp_time.py"
+    ]
+}
