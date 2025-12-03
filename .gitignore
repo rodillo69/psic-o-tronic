@@ -1,0 +1,31 @@
+# MicroPython / ESP32
+*.pyc
+__pycache__/
+.DS_Store
+
+# Configuration files with sensitive data (stored on device)
+config.json
+stats.json
+
+# Local development
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+
+# Mac specific
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Credentials and secrets (never commit these)
+credentials.json
+secrets.py
+*.key
+*.pem
