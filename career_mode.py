@@ -970,6 +970,9 @@ class CareerMode:
                 self._tutorial_page = 0
                 self.state = CareerState.AYUDA
             elif accion == "volver":
+                # Registrar actividad antes de volver a SCREENSAVER
+                self._register_activity()
+                self._wake_up()
                 self.state = CareerState.SCREENSAVER
                 self.scroll_idx = 0
                 self.menu_idx = 0
@@ -977,6 +980,9 @@ class CareerMode:
                 save_career(self.data)
                 self.exit_requested = True
         elif key == 'BACK':
+            # Registrar actividad antes de volver a SCREENSAVER
+            self._register_activity()
+            self._wake_up()
             self.state = CareerState.SCREENSAVER
             self.scroll_idx = 0
             self.menu_idx = 0
@@ -1513,6 +1519,11 @@ class CareerMode:
                 # Terminar
                 self._dinero_ganado = 0
                 self._resultado_page = 0
+
+                # Registrar actividad antes de volver a SCREENSAVER
+                self._register_activity()
+                self._wake_up()  # Asegurar backlight encendido
+
                 if self.level_up_info:
                     self.state = CareerState.SUBIDA_NIVEL
                 else:
@@ -1558,6 +1569,11 @@ class CareerMode:
         
         if key == 'SELECT':
             self.level_up_info = None
+
+            # Registrar actividad antes de volver a SCREENSAVER
+            self._register_activity()
+            self._wake_up()  # Asegurar backlight encendido
+
             self.state = CareerState.SCREENSAVER
     
     def _update_lista_pacientes(self, key):
@@ -1907,6 +1923,11 @@ class CareerMode:
         if self._tutorial_page >= len(paginas):
             marcar_tutorial(self.data, "inicio")
             save_career(self.data)
+
+            # Registrar actividad antes de volver a SCREENSAVER
+            self._register_activity()
+            self._wake_up()
+
             self.state = CareerState.SCREENSAVER
             return
         
@@ -2649,6 +2670,11 @@ class CareerMode:
             self._evento_mostrado = True
             marcar_tutorial(self.data, "evento")
             save_career(self.data)
+
+            # Registrar actividad antes de volver a SCREENSAVER
+            self._register_activity()
+            self._wake_up()
+
             self.state = CareerState.SCREENSAVER
     
     # === MISIONES ===
@@ -3238,6 +3264,11 @@ class CareerMode:
             resultado = aplicar_prediccion_oraculo(self.data, pred)
             save_career(self.data)
             self._oraculo_pred = None
+
+            # Registrar actividad antes de volver a SCREENSAVER
+            self._register_activity()
+            self._wake_up()
+
             self.state = CareerState.SCREENSAVER
     
     # === REGALO PACIENTE ===
@@ -3476,6 +3507,10 @@ class CareerMode:
             self.error_msg = ""
             self.led_notify.value(0)
             
+            # Registrar actividad antes de cambiar de estado
+            self._register_activity()
+            self._wake_up()
+
             # Volver al estado anterior o al screensaver
             if hasattr(self, '_pre_error_state') and self._pre_error_state:
                 # Si estaba generando, volver al screensaver

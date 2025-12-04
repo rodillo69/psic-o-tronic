@@ -1,6 +1,6 @@
 {
-    "version": "1.3",
-    "changelog": "Version dinamica desde JSON + fixes criticos",
+    "version": "1.3.1",
+    "changelog": "Fix bloqueo al volver a menu tras paciente abandona en Mi Consulta",
     "mandatory": false,
     "size_kb": 120,
     "files": [
