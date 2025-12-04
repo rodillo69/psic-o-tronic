@@ -272,7 +272,15 @@ class PsicOTronic:
                     self.lcd.move_to(x, y)
                     self.lcd.putchar(self.lcd_buffer[y][x])
                     self.lcd_shadow[y][x] = self.lcd_buffer[y][x]
-    
+
+    def _lcd_force_clear(self):
+        """Limpia LCD físico completamente y sincroniza buffers"""
+        self.lcd.clear()
+        for y in range(4):
+            for x in range(20):
+                self.lcd_shadow[y][x] = ' '
+                self.lcd_buffer[y][x] = ' '
+
     def _lcd_lines(self, lines):
         """Escribe múltiples líneas centradas"""
         self._lcd_clear_buffer()
@@ -380,7 +388,7 @@ class PsicOTronic:
         
         result = run_wifi_portal(lcd_callback=lcd_callback, check_button=check_cancel)
         
-        if result:
+        if result and result.get("connected"):
             self._lcd_lines([
                 "Configuración",
                 "guardada!",
@@ -560,15 +568,23 @@ class PsicOTronic:
         self.state = State.PASS_DEVICE
     
     def _update_story_intro(self, key):
-        """Estado: Intro de capítulo (historia)"""
-        intro = self.session.get_chapter_intro()
-        
+        """Estado: Intro de capítulo (historia)
+
+        NOTA: Este estado es parte del modo historia que está en desarrollo.
+        Los métodos necesarios aún no están implementados en GameSession.
+        """
+        # TODO: Implementar get_chapter_intro() en GameSession
+        # intro = self.session.get_chapter_intro()
+
+        # Fallback temporal: mostrar mensaje genérico
         self._lcd_clear()
-        for i, line in enumerate(intro[:4]):
-            self._lcd_centered(i, line)
-        
+        self._lcd_centered(0, "MODO HISTORIA")
+        self._lcd_centered(1, "En desarrollo")
+        self._lcd_centered(2, "")
+        self._lcd_centered(3, "[OK] Continuar")
+
         self._leds_select_only()
-        
+
         if key == 'SELECT':
             self.state = State.PASS_DEVICE
     
@@ -765,8 +781,9 @@ class PsicOTronic:
             
             if game_state == "win":
                 self.state = State.GAME_OVER
-            elif game_state == "chapter_complete":
-                self.state = State.CHAPTER_COMPLETE
+            # NOTA: chapter_complete está comentado porque el modo historia no está implementado
+            # elif game_state == "chapter_complete":
+            #     self.state = State.CHAPTER_COMPLETE
             elif game_state == "game_over":
                 # Comprobar si es récord
                 if self.session.mode == MODE_SURVIVAL:
@@ -783,18 +800,29 @@ class PsicOTronic:
                     self.state = State.GAME_OVER
     
     def _update_chapter_complete(self, key):
-        """Estado: Capítulo completado (historia)"""
-        outro = self.session.get_chapter_outro(won=True)
-        
+        """Estado: Capítulo completado (historia)
+
+        NOTA: Este estado es parte del modo historia que está en desarrollo.
+        Los métodos necesarios aún no están implementados en GameSession.
+        """
+        # TODO: Implementar get_chapter_outro() y advance_chapter() en GameSession
+        # outro = self.session.get_chapter_outro(won=True)
+
+        # Fallback temporal: mostrar mensaje genérico
         self._lcd_clear()
-        for i, line in enumerate(outro[:4]):
-            self._lcd_centered(i, line)
-        
+        self._lcd_centered(0, "CAPITULO COMPLETO")
+        self._lcd_centered(1, "Modo historia")
+        self._lcd_centered(2, "en desarrollo")
+        self._lcd_centered(3, "[OK] Continuar")
+
         self._leds_select_only()
-        
+
         if key == 'SELECT':
-            self.session.advance_chapter()
-            self.state = State.STORY_INTRO
+            # TODO: Implementar advance_chapter()
+            # self.session.advance_chapter()
+            # self.state = State.STORY_INTRO
+            # Por ahora volver al menú
+            self.state = State.MENU
     
     def _update_initials_input(self, key):
         """Estado: Input de iniciales para récord"""
@@ -1276,12 +1304,14 @@ class PsicOTronic:
             State.MODE_SELECT: self._update_mode_select,
             State.PLAYER_SELECT: self._update_player_select,
             State.QUOTA_SELECT: self._update_quota_select,
+            State.STORY_INTRO: self._update_story_intro,
             State.PASS_DEVICE: self._update_pass_device,
             State.FETCHING: self._update_fetching,
             State.MESSAGE_ANIM: self._update_message_anim,
             State.READING: self._update_reading,
             State.CHOOSING: self._update_choosing,
             State.FEEDBACK: self._update_feedback,
+            State.CHAPTER_COMPLETE: self._update_chapter_complete,
             State.INITIALS_INPUT: self._update_initials_input,
             State.GAME_OVER: self._update_game_over,
             State.STATS: self._update_stats,
