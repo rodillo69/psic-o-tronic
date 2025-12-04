@@ -1,6 +1,6 @@
 {
-    "version": "1.2.1",
-    "changelog": "Version inicial",
+    "version": "1.2.2",
+    "changelog": "Correccion critica: 3 bugs arreglados (handlers, _lcd_force_clear, modo historia)",
     "mandatory": false,
     "size_kb": 120,
     "files": [
