@@ -1,11 +1,12 @@
 # ============================================================================
-# MAIN.PY - PSIC-O-TRONIC v1.0
+# MAIN.PY - PSIC-O-TRONIC
 # Motor principal del juego
 # ============================================================================
 
 import time
 import gc
 import network
+import ujson
 from machine import Pin, I2C
 
 # Módulos propios
@@ -90,17 +91,20 @@ class State:
 
 class PsicOTronic:
     """Motor principal del juego PSIC-O-TRONIC"""
-    
+
     def __init__(self):
+        # Cargar versión desde version.json
+        self.version = self._load_version()
+
         print("\n" + "="*40)
-        print("  PSIC-O-TRONIC v1.0")
+        print(f"  PSIC-O-TRONIC v{self.version}")
         print("="*40)
-        
+
         # Inicializar hardware
         self._init_gpio()
         self._init_lcd()
         self._init_audio()
-        
+
         # Estado
         self.state = State.BOOT
         self.prev_state = -1
@@ -140,7 +144,16 @@ class PsicOTronic:
         # Buffer LCD para evitar flickering
         self.lcd_buffer = [[' ' for _ in range(20)] for _ in range(4)]
         self.lcd_shadow = [[' ' for _ in range(20)] for _ in range(4)]
-        
+
+    def _load_version(self):
+        """Carga la versión desde version.json"""
+        try:
+            with open('/version.json', 'r') as f:
+                data = ujson.load(f)
+                return data.get('version', '1.0')
+        except:
+            return '1.0'  # Fallback si no se puede leer
+
     def _init_gpio(self):
         """Inicializa pines GPIO"""
         print("[INIT] GPIO...")
@@ -315,7 +328,7 @@ class PsicOTronic:
         self._lcd_clear()
         self._lcd_centered(0, "====================")
         self._lcd_centered(1, "  PSIC-O-TRONIC")
-        self._lcd_centered(2, "     ver 1.0")
+        self._lcd_centered(2, f"     ver {self.version}")
         self._lcd_centered(3, "====================")
     
     def _effect_message_alert(self):
@@ -409,7 +422,7 @@ class PsicOTronic:
             self._lcd_clear()
             self._lcd_centered(0, "====================")
             self._lcd_centered(1, "  PSIC-O-TRONIC")
-            self._lcd_centered(2, "     ver 1.0")
+            self._lcd_centered(2, f"     ver {self.version}")
             
             # Barra de carga
             progress = min(20, step * 3)
@@ -1034,8 +1047,8 @@ class PsicOTronic:
         """Estado: Créditos con scroll"""
         pages = [
             ["PSIC-O-TRONIC",
-             "Versión 1.0",
-             "Noviembre 2025",
+             f"Version {self.version}",
+             "Diciembre 2024",
              ""],
             ["Desarrollado por:",
              "Miguel Cañadas",

@@ -1,6 +1,6 @@
 {
-    "version": "1.2.2",
-    "changelog": "Correccion critica: 3 bugs arreglados (handlers, _lcd_force_clear, modo historia)",
+    "version": "1.3",
+    "changelog": "Version dinamica desde JSON + fixes criticos",
     "mandatory": false,
     "size_kb": 120,
     "files": [
