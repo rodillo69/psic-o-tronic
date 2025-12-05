@@ -1451,6 +1451,10 @@ class CareerMode:
     
     def _update_resultado_paciente(self, key):
         """Estado: Paciente curado o abandona - Con cierre narrativo"""
+        # Debug
+        if self.frame == 1:
+            print(f"[CAREER] RESULTADO_PACIENTE: tipo={self._resultado_tipo}, paciente={self.paciente_actual is not None}")
+
         # Sonido al inicio
         if self.frame == 1:
             if self._resultado_tipo == "curado":
@@ -1459,17 +1463,25 @@ class CareerMode:
                 play_sound('huye')
             # Inicializar página
             self._resultado_page = 0
-        
+
         self._lcd_clear()
-        
+
+        # Seguridad: verificar que paciente_actual existe
+        if not self.paciente_actual:
+            print("[CAREER] ERROR: paciente_actual es None en RESULTADO_PACIENTE")
+            self._register_activity()
+            self._wake_up()
+            self.state = CareerState.SCREENSAVER
+            return
+
         p = self.paciente_actual
-        nombre = p["nombre"][:14] if p else "???"
-        
+        nombre = p.get("nombre", "???")[:14]
+
         # Obtener cierre narrativo
         if self._resultado_tipo == "curado":
-            cierre = p.get("cierre_curado", "") if p else ""
+            cierre = p.get("cierre_curado", "")
         else:
-            cierre = p.get("cierre_huye", "") if p else ""
+            cierre = p.get("cierre_huye", "")
         
         # Página 0: Título + nombre + dinero
         # Página 1: Cierre narrativo (si existe)
@@ -1509,26 +1521,58 @@ class CareerMode:
         
         # Solo LED select
         self._leds_select_only()
-        
+
+        # Debug: mostrar si se detecta tecla
+        if key:
+            print(f"[CAREER] RESULTADO_PACIENTE: key={key}, page={page}, cierre={len(cierre) if cierre else 0}")
+
         if key == 'SELECT':
+            print(f"[CAREER] SELECT presionado, page={page}, cierre={'SI' if cierre else 'NO'}")
             if page == 0 and cierre:
                 # Ir a página de cierre
                 self._resultado_page = 1
                 self.frame = 0
             else:
                 # Terminar
+                print("[CAREER] Saliendo de RESULTADO_PACIENTE a SCREENSAVER")
                 self._dinero_ganado = 0
                 self._resultado_page = 0
+
+                # Guardar antes de salir
+                save_career(self.data)
 
                 # Registrar actividad antes de volver a SCREENSAVER
                 self._register_activity()
                 self._wake_up()  # Asegurar backlight encendido
 
                 if self.level_up_info:
+                    print("[CAREER] -> SUBIDA_NIVEL")
                     self.state = CareerState.SUBIDA_NIVEL
                 else:
+                    print("[CAREER] -> SCREENSAVER")
                     self.state = CareerState.SCREENSAVER
                 self.paciente_actual = None
+
+        elif key == 'BACK' or key == 'UP' or key == 'DOWN':
+            # Ruta de escape: cualquier otra tecla también permite salir
+            print(f"[CAREER] Tecla escape {key} - forzando salida")
+            self._dinero_ganado = 0
+            self._resultado_page = 0
+
+            # Guardar antes de salir
+            save_career(self.data)
+
+            # Registrar actividad antes de volver a SCREENSAVER
+            self._register_activity()
+            self._wake_up()
+
+            if self.level_up_info:
+                print("[CAREER] -> SUBIDA_NIVEL")
+                self.state = CareerState.SUBIDA_NIVEL
+            else:
+                print("[CAREER] -> SCREENSAVER")
+                self.state = CareerState.SCREENSAVER
+            self.paciente_actual = None
     
     def _update_subida_nivel(self, key):
         """Estado: Subida de nivel con animación"""
