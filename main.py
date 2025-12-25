@@ -444,19 +444,19 @@ class PsicOTronic:
     def _update_menu(self, key):
         """Estado: Menú principal"""
         options = ["Jugar", "Estadisticas", "Como Jugar", "WiFi"]
-        
+
         # Añadir opción OTA si está disponible
         if OTA_AVAILABLE:
             if ota_manager.has_update():
                 options.append("Actualizar [!]")
             else:
                 options.append("Actualizar")
-        
+
         options.append("Creditos")
-        
+
         self._lcd_clear()
         self._lcd_centered(0, "== MENU ==")
-        
+
         # Mostrar 3 opciones visibles
         start = max(0, min(self.menu_idx - 1, len(options) - 3))
         for i in range(3):
@@ -464,8 +464,11 @@ class PsicOTronic:
             if idx < len(options):
                 prefix = ">" if idx == self.menu_idx else " "
                 self._lcd_put(1, i + 1, prefix + options[idx][:18])
-        
-        self._leds_menu()
+
+        # Indicadores de scroll con LEDs
+        can_up = self.menu_idx > 0
+        can_down = self.menu_idx < len(options) - 1
+        self._leds_scroll(can_up, can_down)
         
         if key == 'UP':
             self.menu_idx = (self.menu_idx - 1) % len(options)
@@ -494,24 +497,30 @@ class PsicOTronic:
     
     def _update_mode_select(self, key):
         """Estado: Selección de modo"""
-        modes = ["Clásico", "Survival", "Mi Consulta"]
-        
+        modes = ["Clásico", "Survival", "Mi Consulta", "Volver al Menu"]
+
         self._lcd_clear()
         self._lcd_centered(0, "MODO DE JUEGO")
-        
+
         for i, mode in enumerate(modes):
             prefix = ">" if i == self.mode_idx else " "
             self._lcd_put(1, i + 1, f"{prefix}{mode}")
-        
-        self._leds_menu()
-        
+
+        # Indicadores de scroll con LEDs
+        can_up = self.mode_idx > 0
+        can_down = self.mode_idx < len(modes) - 1
+        self._leds_scroll(can_up, can_down)
+
         if key == 'UP':
-            self.mode_idx = (self.mode_idx - 1) % 3
+            self.mode_idx = (self.mode_idx - 1) % len(modes)
         elif key == 'DOWN':
-            self.mode_idx = (self.mode_idx + 1) % 3
+            self.mode_idx = (self.mode_idx + 1) % len(modes)
         elif key == 'SELECT':
             if self.mode_idx == 2:  # Mi Consulta
                 self._launch_career_mode()
+            elif self.mode_idx == 3:  # Volver al Menu
+                self.state = State.MENU
+                self.menu_idx = 0
             else:
                 self.state = State.PLAYER_SELECT
     

@@ -1,6 +1,6 @@
 {
-    "version": "2.0",
-    "changelog": "Restaurar config flash personalizada + auto-upgrade valores viejos",
+    "version": "2.1",
+    "changelog": "Indicadores LED scroll en menús + Volver al Menu en selección modo",
     "mandatory": true,
     "size_kb": 121,
     "files": [
