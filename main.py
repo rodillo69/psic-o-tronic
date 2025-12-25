@@ -443,7 +443,7 @@ class PsicOTronic:
     
     def _update_menu(self, key):
         """Estado: Menú principal"""
-        options = ["Jugar", "Estadisticas", "Como Jugar", "WiFi"]
+        options = ["Jugar", "Estadisticas", "Como Jugar", "Abrir Portal Web"]
 
         # Añadir opción OTA si está disponible
         if OTA_AVAILABLE:
@@ -487,7 +487,7 @@ class PsicOTronic:
             elif selected == "Como Jugar":
                 self.state = State.HOW_TO_PLAY
                 self.help_page = 0
-            elif selected == "WiFi":
+            elif selected == "Abrir Portal Web":
                 self.state = State.WIFI_SETTINGS
             elif selected.startswith("Actualizar"):
                 self.state = State.OTA_CHECK
@@ -764,9 +764,22 @@ class PsicOTronic:
             self.session.selected_option += 1
             self.opt_scroll = 0
         elif key == 'SELECT':
-            self.session.process_answer(self.session.selected_option)
-            self.state = State.FEEDBACK
-            self.frame = 0
+            # Manejo especial para error 403 (API key bloqueada)
+            if self.session.scenario.get('tema_corto') == 'error_403':
+                selected = self.session.selected_option
+                if selected == 0:  # Abrir Portal Web
+                    self.state = State.WIFI_SETTINGS
+                elif selected == 1:  # Reintentar
+                    self.state = State.FETCHING
+                    self.frame = 0
+                else:  # Volver al Menu
+                    self.state = State.MENU
+                    self.menu_idx = 0
+            else:
+                # Flujo normal del juego
+                self.session.process_answer(self.session.selected_option)
+                self.state = State.FEEDBACK
+                self.frame = 0
     
     def _update_feedback(self, key):
         """Estado: Mostrando feedback"""

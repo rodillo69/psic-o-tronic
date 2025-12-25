@@ -81,23 +81,27 @@ def _call_gemini(prompt):
         if res.status_code == 200:
             response_text = res.text
             res.close()
-            
+
             data = ujson.loads(response_text)
             text_res = data['candidates'][0]['content']['parts'][0]['text']
             text_res = text_res.replace("```json", "").replace("```", "").strip()
-            
+
             result = ujson.loads(text_res)
             gc.collect()
             return result
         else:
             status = res.status_code
             res.close()
-            print(f"[GEMINI] Error HTTP {status}")
-            
+
+            if status == 403:
+                print(f"[GEMINI] API KEY BLOCKED! Error 403 - API key reportada como filtrada")
+            else:
+                print(f"[GEMINI] Error HTTP {status}")
+
             if ERROR_HANDLER_AVAILABLE:
                 error_type = map_http_error(status)
                 report_error(error_type, f"career_patients HTTP {status}")
-            
+
             return None
             
     except MemoryError as e:

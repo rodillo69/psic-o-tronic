@@ -1,6 +1,6 @@
 {
-    "version": "2.1",
-    "changelog": "Indicadores LED scroll en menús + Volver al Menu en selección modo",
+    "version": "2.2",
+    "changelog": "Manejo error 403 API bloqueada + Menu 'Abrir Portal Web'",
     "mandatory": true,
     "size_kb": 121,
     "files": [

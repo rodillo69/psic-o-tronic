@@ -245,7 +245,18 @@ class GeminiOracle:
                 elif status == 401:
                     self.last_error = "HTTP 401: API Key no autorizada"
                 elif status == 403:
-                    self.last_error = "HTTP 403: Acceso denegado"
+                    self.last_error = "API_KEY_BLOCKED"  # Marca especial para 403
+                    print(f"[GEMINI] API KEY BLOCKED! Key: ...{api_key[-20:]}")
+                    # Retornar escenario explicativo para 403
+                    return {
+                        "tema_corto": "error_403",
+                        "remitente": "SISTEMA",
+                        "mensaje": "API Key de Gemini bloqueada. Google la detecto como filtrada. Necesitas configurar una nueva.",
+                        "opciones": ["Abrir Portal Web", "Reintentar", "Volver al Menu"],
+                        "correcta": 0,
+                        "feedback_win": "Abriendo portal...",
+                        "feedback_lose": "Cancelado"
+                    }
                 elif status == 429:
                     self.last_error = "HTTP 429: Límite de peticiones excedido"
                     print(f"[GEMINI] RATE LIMIT! Key: ...{api_key[-20:]}, Model: {api_model}")
