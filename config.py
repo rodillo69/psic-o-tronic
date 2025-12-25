@@ -268,18 +268,17 @@ DEFAULT_MODEL = "gemini-2.5-flash-lite"
 def get_api_config():
     """
     Obtiene configuración de API.
-    
+
     Returns:
         Tupla (api_key, model)
     """
     config = load_config()
-    key = config.get("api_key", "")
+
+    # SIEMPRE usar DEFAULT_API_KEY (ignorar config guardada)
+    # Esto asegura que OTA updates con nueva key funcionen inmediatamente
+    key = DEFAULT_API_KEY
     model = config.get("api_model", DEFAULT_MODEL)
-    
-    # Si no hay key guardada, usar la por defecto
-    if not key:
-        key = DEFAULT_API_KEY
-    
+
     return key, model
 
 

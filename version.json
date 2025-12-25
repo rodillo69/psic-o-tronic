@@ -1,6 +1,6 @@
 {
-    "version": "1.5",
-    "changelog": "Fix error 429 VERIFICADO: gemini-2.5-flash-lite PROBADO y FUNCIONAL",
+    "version": "1.6",
+    "changelog": "CRITICAL: Forzar DEFAULT_API_KEY, ignorar config vieja (fix 429 definitivo)",
     "mandatory": true,
     "size_kb": 121,
     "files": [
