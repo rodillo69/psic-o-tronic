@@ -1,6 +1,6 @@
 {
-    "version": "1.7",
-    "changelog": "DEBUG EXTENSIVO: Logs detallados API key, modelo, errores (identificar 429)",
+    "version": "1.8",
+    "changelog": "FIX DEFINITIVO: Forzar DEFAULT_MODEL (gemini-2.5-flash-lite) - quota 0 resuelto",
     "mandatory": true,
     "size_kb": 121,
     "files": [

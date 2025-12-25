@@ -274,10 +274,10 @@ def get_api_config():
     """
     config = load_config()
 
-    # SIEMPRE usar DEFAULT_API_KEY (ignorar config guardada)
-    # Esto asegura que OTA updates con nueva key funcionen inmediatamente
+    # SIEMPRE usar DEFAULT_API_KEY y DEFAULT_MODEL (ignorar config guardada)
+    # Esto asegura que OTA updates funcionen inmediatamente
     key = DEFAULT_API_KEY
-    model = config.get("api_model", DEFAULT_MODEL)
+    model = DEFAULT_MODEL  # FORZAR modelo también (no leer de config)
 
     return key, model
 
