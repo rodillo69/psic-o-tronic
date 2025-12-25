@@ -23,8 +23,8 @@ except ImportError:
     ERROR_HANDLER_AVAILABLE = False
 
 # API Key por defecto (fallback)
-DEFAULT_API_KEY = "AIzaSyBSXc2L5sui5ilUAQVpw1vShTUxsFs6Kj0"
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_API_KEY = "AIzaSyDcCfYRcuOM_7vqP3moss-_virH1dI4xBg"
+DEFAULT_MODEL = "gemini-2.5-flash-lite"
 
 
 def _get_api_url():

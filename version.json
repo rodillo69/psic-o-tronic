@@ -1,6 +1,6 @@
 {
-    "version": "1.8",
-    "changelog": "FIX DEFINITIVO: Forzar DEFAULT_MODEL (gemini-2.5-flash-lite) - quota 0 resuelto",
+    "version": "1.9",
+    "changelog": "Fix career_patients.py: Actualizar fallbacks API key + modelo (Mi Consulta)",
     "mandatory": true,
     "size_kb": 121,
     "files": [
