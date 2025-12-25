@@ -17,8 +17,9 @@ except ImportError:
     ERROR_HANDLER_AVAILABLE = False
 
 # API Key por defecto (fallback)
-DEFAULT_API_KEY = "AIzaSyBSXc2L5sui5ilUAQVpw1vShTUxsFs6Kj0"
-DEFAULT_MODEL = "gemini-2.0-flash"
+# Modelo: gemini-2.0-flash-lite (15 RPM, 1000 RPD - mejor para evitar error 429)
+DEFAULT_API_KEY = "AIzaSyDcCfYRcuOM_7vqP3moss-_virH1dI4xBg"
+DEFAULT_MODEL = "gemini-2.0-flash-lite"
 
 def get_api_url():
     """Obtiene la URL de la API con la key configurada"""

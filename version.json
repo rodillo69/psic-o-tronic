@@ -1,6 +1,6 @@
 {
-    "version": "1.3.2",
-    "changelog": "Fix bloqueo RESULTADO_PACIENTE + rutas escape + debug extensivo",
+    "version": "1.3.3",
+    "changelog": "Fix error 429: nuevo modelo gemini-2.0-flash-lite (15 RPM, 1000 RPD) + nueva API key",
     "mandatory": false,
     "size_kb": 121,
     "files": [

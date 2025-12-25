@@ -26,7 +26,7 @@ DEFAULT_CONFIG = {
     "sound_enabled": True,
     "version": "1.0",
     "api_key": "",
-    "api_model": "gemini-2.0-flash",
+    "api_model": "gemini-2.0-flash-lite",
 }
 
 # Estadísticas por defecto
@@ -260,8 +260,9 @@ def is_wifi_configured():
 # --- API Config ---
 
 # API Key por defecto (de prueba)
-DEFAULT_API_KEY = "AIzaSyBSXc2L5sui5ilUAQVpw1vShTUxsFs6Kj0"
-DEFAULT_MODEL = "gemini-2.0-flash"
+# Modelo: gemini-2.0-flash-lite (15 RPM, 1000 RPD - mejor para evitar error 429)
+DEFAULT_API_KEY = "AIzaSyDcCfYRcuOM_7vqP3moss-_virH1dI4xBg"
+DEFAULT_MODEL = "gemini-2.0-flash-lite"
 
 
 def get_api_config():
