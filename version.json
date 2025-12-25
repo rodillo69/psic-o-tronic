@@ -1,8 +1,8 @@
 {
-    "version": "2.2",
-    "changelog": "Manejo error 403 API bloqueada + Menu 'Abrir Portal Web'",
+    "version": "2.3",
+    "changelog": "Instrucciones API + Bienvenida + Wipe datos (¡RESET!)",
     "mandatory": true,
-    "size_kb": 121,
+    "size_kb": 125,
     "files": [
         "main.py",
         "career_mode.py",

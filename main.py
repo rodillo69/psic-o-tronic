@@ -56,34 +56,35 @@ DEBOUNCE_MS = 280
 
 class State:
     BOOT = 0
-    WIFI_CHECK = 1
-    WIFI_PORTAL = 2
-    INTRO = 3
-    MENU = 4
-    MODE_SELECT = 5
-    PLAYER_SELECT = 6
-    QUOTA_SELECT = 7
-    STORY_INTRO = 8
-    PASS_DEVICE = 9
-    FETCHING = 10
-    MESSAGE_ANIM = 11
-    READING = 12
-    CHOOSING = 13
-    FEEDBACK = 14
-    CHAPTER_COMPLETE = 15
-    INITIALS_INPUT = 16
-    GAME_OVER = 17
-    STATS = 18
-    HOW_TO_PLAY = 19
-    WIFI_SETTINGS = 20
-    CREDITS = 21
-    PAUSE = 22
-    ERROR = 23
+    FIRST_TIME_WELCOME = 1
+    WIFI_CHECK = 2
+    WIFI_PORTAL = 3
+    INTRO = 4
+    MENU = 5
+    MODE_SELECT = 6
+    PLAYER_SELECT = 7
+    QUOTA_SELECT = 8
+    STORY_INTRO = 9
+    PASS_DEVICE = 10
+    FETCHING = 11
+    MESSAGE_ANIM = 12
+    READING = 13
+    CHOOSING = 14
+    FEEDBACK = 15
+    CHAPTER_COMPLETE = 16
+    INITIALS_INPUT = 17
+    GAME_OVER = 18
+    STATS = 19
+    HOW_TO_PLAY = 20
+    WIFI_SETTINGS = 21
+    CREDITS = 22
+    PAUSE = 23
+    ERROR = 24
     # OTA Updates
-    OTA_CHECK = 24
-    OTA_INFO = 25
-    OTA_UPDATING = 26
-    OTA_RESULT = 27
+    OTA_CHECK = 25
+    OTA_INFO = 26
+    OTA_UPDATING = 27
+    OTA_RESULT = 28
 
 # ============================================================================
 # CLASE PRINCIPAL
@@ -349,8 +350,58 @@ class PsicOTronic:
         """Estado: Boot"""
         self._effect_crt_intro()
         time.sleep(1)
-        self.state = State.WIFI_CHECK
+
+        # Verificar si necesita wipe por actualización
+        from config import check_and_wipe_if_needed, file_exists
+        wiped = check_and_wipe_if_needed()
+
+        if wiped:
+            # Si se hizo wipe, mostrar mensaje
+            self._lcd_clear()
+            self._lcd_centered(0, "ACTUALIZACION 2.3")
+            self._lcd_centered(1, "Datos reseteados")
+            self._lcd_centered(2, "Config limpia")
+            time.sleep(3)
+
+        # Detectar si es primera vez (no existe config.json)
+        if not file_exists("/config.json"):
+            self.state = State.FIRST_TIME_WELCOME
+        else:
+            self.state = State.WIFI_CHECK
     
+    def _update_first_time_welcome(self, key):
+        """Estado: Bienvenida primera vez"""
+        self._lcd_clear()
+        self._lcd_centered(0, "BIENVENIDO A")
+        self._lcd_centered(1, "PSIC-O-TRONIC!")
+        self._lcd_put(0, 3, "   [OK] Continuar")
+
+        self._leds_select_only()
+
+        if key == 'SELECT':
+            # Mostrar instrucciones
+            if not hasattr(self, '_welcome_page'):
+                self._welcome_page = 0
+
+            if self._welcome_page == 0:
+                self._lcd_clear()
+                self._lcd_put(0, 0, "Primero debes")
+                self._lcd_put(0, 1, "configurar:")
+                self._lcd_put(0, 2, "1. Red WiFi")
+                self._lcd_put(0, 3, "2. API de Gemini")
+                self._welcome_page = 1
+            elif self._welcome_page == 1:
+                self._lcd_clear()
+                self._lcd_put(0, 0, "Se abrira el Portal")
+                self._lcd_put(0, 1, "Web de")
+                self._lcd_put(0, 2, "configuracion.")
+                self._lcd_put(0, 3, "   [OK] Abrir")
+                self._welcome_page = 2
+            else:
+                # Ir al portal WiFi
+                self.state = State.WIFI_PORTAL
+                self._welcome_page = 0
+
     def _update_wifi_check(self, key):
         """Estado: Verificar WiFi"""
         self._lcd_lines([
@@ -1332,6 +1383,7 @@ class PsicOTronic:
         
         state_handlers = {
             State.BOOT: self._update_boot,
+            State.FIRST_TIME_WELCOME: self._update_first_time_welcome,
             State.WIFI_CHECK: self._update_wifi_check,
             State.WIFI_PORTAL: self._update_wifi_portal,
             State.INTRO: self._update_intro,

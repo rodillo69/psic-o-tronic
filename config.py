@@ -27,6 +27,7 @@ DEFAULT_CONFIG = {
     "version": "1.0",
     "api_key": "",
     "api_model": "gemini-2.5-flash-lite",
+    "data_version": "2.3",  # Versión de estructura de datos
 }
 
 # Estadísticas por defecto
@@ -322,6 +323,67 @@ def clear_api_config():
     config["api_key"] = ""
     config["api_model"] = DEFAULT_MODEL
     return save_config(config)
+
+
+def check_and_wipe_if_needed():
+    """
+    Verifica si es necesario hacer wipe de datos por actualización.
+
+    Si data_version < 2.3, borra todos los datos guardados y crea
+    config fresh con data_version 2.3.
+
+    Returns:
+        bool: True si se hizo wipe, False si no
+    """
+    config = load_config()
+    current_data_version = config.get("data_version", "0.0")
+
+    # Convertir versiones a float para comparar
+    try:
+        current_ver = float(current_data_version)
+    except:
+        current_ver = 0.0
+
+    # Si data_version < 2.3, hacer wipe
+    if current_ver < 2.3:
+        print(f"[CONFIG] Data version {current_data_version} < 2.3 - Wiping data...")
+
+        # Borrar todos los archivos de datos
+        try:
+            import os
+
+            # Borrar config y stats
+            try:
+                os.remove(CONFIG_FILE)
+                print("[CONFIG] Deleted config.json")
+            except:
+                pass
+
+            try:
+                os.remove(STATS_FILE)
+                print("[CONFIG] Deleted stats.json")
+            except:
+                pass
+
+            # Borrar carrera
+            try:
+                os.remove("/career_save.json")
+                print("[CONFIG] Deleted career_save.json")
+            except:
+                pass
+
+            # Crear config fresh con nueva data_version
+            fresh_config = DEFAULT_CONFIG.copy()
+            save_config(fresh_config)
+            print(f"[CONFIG] Created fresh config with data_version 2.3")
+
+            return True
+
+        except Exception as e:
+            print(f"[CONFIG] Error during wipe: {e}")
+            return False
+
+    return False
 
 
 # Test standalone

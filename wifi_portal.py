@@ -911,17 +911,27 @@ def generate_config_page(networks=None, scan_time=0, current_ssid="", current_ke
             <h2>API de Gemini</h2>
             <div class="info-box">
                 La API Key es necesaria para generar los casos clinicos.
-                Puedes obtener una gratis en <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>.
+                <strong>Es GRATIS</strong> (hasta 1500 peticiones/dia).
             </div>
+
+            <div class="warning-box" style="margin-bottom:15px;">
+                <strong>Como obtener tu API Key (5 pasos):</strong><br>
+                1. Abre <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#66ff66;">Google AI Studio</a> en tu movil<br>
+                2. Inicia sesion con tu cuenta de Google<br>
+                3. Pulsa "Create API Key" (crear clave de API)<br>
+                4. Selecciona un proyecto o crea uno nuevo<br>
+                5. Copia la clave (empieza con "AIzaSy...") y pegala aqui abajo
+            </div>
+
             <form method="POST" action="/api">
                 <label>API Key</label>
                 <input type="text" name="api_key" value="{current_key}" placeholder="AIzaSy...">
-                
+
                 <label>Modelo</label>
                 <select name="model">
                     {model_options}
                 </select>
-                
+
                 <button type="submit">Guardar API</button>
             </form>
         </div>
