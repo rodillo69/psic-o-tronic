@@ -161,32 +161,43 @@ class GeminiOracle:
     def get_scenario(self, mode="classic", story_modifier=""):
         """
         Obtiene un nuevo escenario de Gemini.
-        
+
         Args:
             mode: Modo de juego
             story_modifier: Modificador para modo historia
-            
+
         Returns:
             Dict con escenario o escenario de error
         """
         gc.collect()
-        
+
         prompt = self._build_prompt(mode, story_modifier)
-        
+
         payload = {
             "contents": [{
                 "parts": [{"text": prompt}]
             }]
         }
-        
+
         try:
+            # DEBUG: Mostrar configuración
+            from config import get_api_config
+            api_key, api_model = get_api_config()
+            print(f"[GEMINI] Using API key: ...{api_key[-20:]}")
+            print(f"[GEMINI] Using model: {api_model}")
+
             payload_str = ujson.dumps(payload)
-            
+
+            api_url = get_api_url()
+            print(f"[GEMINI] POST to: {api_url[:80]}...")
+
             res = urequests.post(
-                get_api_url(),
+                api_url,
                 data=payload_str,
                 headers={'Content-Type': 'application/json'}
             )
+
+            print(f"[GEMINI] Response status: {res.status_code}")
             
             if res.status_code == 200:
                 response_text = res.text
@@ -214,13 +225,21 @@ class GeminiOracle:
                 
             else:
                 status = res.status_code
+
+                # DEBUG: Mostrar cuerpo del error
+                try:
+                    error_body = res.text[:500]  # Primeros 500 chars
+                    print(f"[GEMINI] Error body: {error_body}")
+                except:
+                    pass
+
                 res.close()
-                
+
                 # Usar error handler si disponible
                 if ERROR_HANDLER_AVAILABLE:
                     error_type = map_http_error(status)
                     report_error(error_type, f"HTTP {status}")
-                
+
                 if status == 400:
                     self.last_error = "HTTP 400: API Key inválida o prompt mal formado"
                 elif status == 401:
@@ -229,10 +248,13 @@ class GeminiOracle:
                     self.last_error = "HTTP 403: Acceso denegado"
                 elif status == 429:
                     self.last_error = "HTTP 429: Límite de peticiones excedido"
+                    print(f"[GEMINI] RATE LIMIT! Key: ...{api_key[-20:]}, Model: {api_model}")
                 elif status == 500:
                     self.last_error = "HTTP 500: Error del servidor"
                 else:
                     self.last_error = f"HTTP {status}: Error desconocido"
+
+                print(f"[GEMINI] Error: {self.last_error}")
                 return None
                 
         except MemoryError as e:

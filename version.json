@@ -1,6 +1,6 @@
 {
-    "version": "1.6",
-    "changelog": "CRITICAL: Forzar DEFAULT_API_KEY, ignorar config vieja (fix 429 definitivo)",
+    "version": "1.7",
+    "changelog": "DEBUG EXTENSIVO: Logs detallados API key, modelo, errores (identificar 429)",
     "mandatory": true,
     "size_kb": 121,
     "files": [
