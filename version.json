@@ -1,6 +1,6 @@
 {
-    "version": "1.9",
-    "changelog": "Fix career_patients.py: Actualizar fallbacks API key + modelo (Mi Consulta)",
+    "version": "2.0",
+    "changelog": "Restaurar config flash personalizada + auto-upgrade valores viejos",
     "mandatory": true,
     "size_kb": 121,
     "files": [

@@ -269,15 +269,34 @@ def get_api_config():
     """
     Obtiene configuración de API.
 
+    Permite usar API key/modelo personalizado del flash,
+    pero auto-actualiza valores viejos obsoletos.
+
     Returns:
         Tupla (api_key, model)
     """
     config = load_config()
+    key = config.get("api_key", "")
+    model = config.get("api_model", "")
 
-    # SIEMPRE usar DEFAULT_API_KEY y DEFAULT_MODEL (ignorar config guardada)
-    # Esto asegura que OTA updates funcionen inmediatamente
-    key = DEFAULT_API_KEY
-    model = DEFAULT_MODEL  # FORZAR modelo también (no leer de config)
+    # Lista de API keys viejas obsoletas (con cuota agotada/expiradas)
+    OLD_KEYS = [
+        "AIzaSyBSXc2L5sui5ilUAQVpw1vShTUxsFs6Kj0",  # Key vieja original
+    ]
+
+    # Lista de modelos viejos obsoletos (con cuota 0 o deprecados)
+    OLD_MODELS = [
+        "gemini-2.0-flash",  # Cuota 0 en free tier
+        "gemini-1.5-flash",  # Deprecado
+    ]
+
+    # Si no hay key guardada O es una key vieja, usar la nueva por defecto
+    if not key or key in OLD_KEYS:
+        key = DEFAULT_API_KEY
+
+    # Si no hay modelo guardado O es un modelo viejo, usar el nuevo por defecto
+    if not model or model in OLD_MODELS:
+        model = DEFAULT_MODEL
 
     return key, model
 
