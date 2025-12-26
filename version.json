@@ -1,6 +1,6 @@
 {
-    "version": "2.3",
-    "changelog": "Instrucciones API + Bienvenida + Wipe datos (¡RESET!)",
+    "version": "2.3.1",
+    "changelog": "HOTFIX: Arreglar brick en pantalla bienvenida",
     "mandatory": true,
     "size_kb": 125,
     "files": [

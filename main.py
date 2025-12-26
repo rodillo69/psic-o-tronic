@@ -371,33 +371,37 @@ class PsicOTronic:
     
     def _update_first_time_welcome(self, key):
         """Estado: Bienvenida primera vez"""
+        # Inicializar página si no existe
+        if not hasattr(self, '_welcome_page'):
+            self._welcome_page = 0
+
         self._lcd_clear()
-        self._lcd_centered(0, "BIENVENIDO A")
-        self._lcd_centered(1, "PSIC-O-TRONIC!")
-        self._lcd_put(0, 3, "   [OK] Continuar")
+
+        # Mostrar pantalla según página actual
+        if self._welcome_page == 0:
+            # Pantalla 1: Bienvenida
+            self._lcd_centered(0, "BIENVENIDO A")
+            self._lcd_centered(1, "PSIC-O-TRONIC!")
+            self._lcd_put(0, 3, "   [OK] Continuar")
+        elif self._welcome_page == 1:
+            # Pantalla 2: Instrucciones
+            self._lcd_put(0, 0, "Primero debes")
+            self._lcd_put(0, 1, "configurar:")
+            self._lcd_put(0, 2, "1. Red WiFi")
+            self._lcd_put(0, 3, "2. API de Gemini")
+        elif self._welcome_page == 2:
+            # Pantalla 3: Abrir portal
+            self._lcd_put(0, 0, "Se abrira el Portal")
+            self._lcd_put(0, 1, "Web de")
+            self._lcd_put(0, 2, "configuracion.")
+            self._lcd_put(0, 3, "   [OK] Abrir")
 
         self._leds_select_only()
 
+        # Avanzar página al presionar SELECT
         if key == 'SELECT':
-            # Mostrar instrucciones
-            if not hasattr(self, '_welcome_page'):
-                self._welcome_page = 0
-
-            if self._welcome_page == 0:
-                self._lcd_clear()
-                self._lcd_put(0, 0, "Primero debes")
-                self._lcd_put(0, 1, "configurar:")
-                self._lcd_put(0, 2, "1. Red WiFi")
-                self._lcd_put(0, 3, "2. API de Gemini")
-                self._welcome_page = 1
-            elif self._welcome_page == 1:
-                self._lcd_clear()
-                self._lcd_put(0, 0, "Se abrira el Portal")
-                self._lcd_put(0, 1, "Web de")
-                self._lcd_put(0, 2, "configuracion.")
-                self._lcd_put(0, 3, "   [OK] Abrir")
-                self._welcome_page = 2
-            else:
+            self._welcome_page += 1
+            if self._welcome_page > 2:
                 # Ir al portal WiFi
                 self.state = State.WIFI_PORTAL
                 self._welcome_page = 0
