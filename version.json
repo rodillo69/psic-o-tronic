@@ -1,6 +1,6 @@
 {
-    "version": "2.4.0",
-    "changelog": "Mejoras: Audio no-bloqueante, fix DST, timeout API, semver",
+    "version": "2.4.1",
+    "changelog": "Fix: Memory leaks, crash en pausa, variables no reseteadas",
     "mandatory": false,
     "size_kb": 110,
     "files": [

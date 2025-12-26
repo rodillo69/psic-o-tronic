@@ -585,18 +585,20 @@ class PsicOTronic:
         run_career_mode(
             self.lcd,
             self.btn_up,
-            self.btn_select, 
+            self.btn_select,
             self.btn_down,
             self.led_up,
             self.led_select,
             self.led_down,
             self.led_notify
         )
-        # Volver al menu principal
+        # Volver al menu principal - limpiar memoria
         self.state = State.MENU
         self.menu_idx = 0
+        self.mode_idx = 0
         self.frame = 0
         self._lcd_force_clear()
+        gc.collect()  # Liberar memoria del career mode
     
     def _update_player_select(self, key):
         """Estado: Selección de jugadores"""
@@ -941,32 +943,40 @@ class PsicOTronic:
                 
                 self.state = State.GAME_OVER
     
+    def _cleanup_session(self):
+        """Limpia sesión y libera memoria"""
+        self.session = None
+        self.initials_input = None
+        self.opt_scroll = 0
+        gc.collect()
+
     def _update_game_over(self, key):
         """Estado: Game Over"""
         # Sonido al inicio
         if self.frame == 1:
-            if self.session.game_won:
+            if self.session and self.session.game_won:
                 play_sound('victoria')
             else:
                 play_sound('game_over')
-        
+
         self._lcd_clear()
-        
-        if self.session.game_won:
+
+        if self.session and self.session.game_won:
             self._lcd_centered(0, "** VICTORIA **")
             self._lcd_centered(1, "OBJETIVO CUMPLIDO!")
         else:
             self._lcd_centered(0, "** GAME OVER **")
             self._lcd_centered(1, "TODOS DESPEDIDOS")
-        
-        mvp = self.session.get_mvp()
+
+        mvp = self.session.get_mvp() if self.session else None
         if mvp:
             self._lcd_centered(2, f"MVP: P{mvp['id']} ({mvp['score']}pts)")
-        
+
         self._lcd_centered(3, "[OK] Menú")
         self._leds_select_only()
-        
+
         if key == 'SELECT':
+            self._cleanup_session()
             self.state = State.MENU
             self.menu_idx = 0
     
@@ -1122,6 +1132,10 @@ class PsicOTronic:
     
     def _update_credits(self, key):
         """Estado: Créditos con scroll"""
+        # Reset página al entrar
+        if self.frame == 0:
+            self.help_page = 0
+
         pages = [
             ["PSIC-O-TRONIC",
              f"Version {self.version}",
@@ -1167,17 +1181,23 @@ class PsicOTronic:
     
     def _update_pause(self, key):
         """Estado: Menú de pausa"""
+        # Validar que existe sesión (prevenir crash)
+        if not self.session:
+            self.state = State.MENU
+            self.menu_idx = 0
+            return
+
         self._lcd_clear()
         self._lcd_centered(0, "== PAUSA ==")
-        
+
         pause_options = ["Continuar", "Reiniciar", "Salir al menú"]
-        
+
         for i, opt in enumerate(pause_options):
             prefix = ">" if i == self.menu_idx else " "
             self._lcd_put(1, i + 1, f"{prefix}{opt}")
-        
+
         self._leds_menu()
-        
+
         if key == 'UP':
             self.menu_idx = (self.menu_idx - 1) % 3
         elif key == 'DOWN':
@@ -1189,11 +1209,17 @@ class PsicOTronic:
             elif self.menu_idx == 1:  # Reiniciar
                 self._start_game(self.session.mode)
             elif self.menu_idx == 2:  # Salir
+                self._cleanup_session()
                 self.state = State.MENU
             self.menu_idx = 0
     
     def _update_error(self, key):
         """Estado: Pantalla de error con opciones"""
+        # Reset variables al entrar (frame 0)
+        if self.frame == 0:
+            self.error_scroll = 0
+            self.error_menu_idx = 0
+
         # Preparar líneas de error
         error_lines = ["ERROR"]
         
@@ -1243,12 +1269,9 @@ class PsicOTronic:
                 self.error_menu_idx = 1
         elif key == 'SELECT':
             if self.error_menu_idx == 0:  # Reintentar
-                self.error_scroll = 0
-                self.error_menu_idx = 0
                 self.state = State.FETCHING
             else:  # Menú
-                self.error_scroll = 0
-                self.error_menu_idx = 0
+                self._cleanup_session()
                 self.state = State.MENU
     
     # === OTA UPDATES ===
