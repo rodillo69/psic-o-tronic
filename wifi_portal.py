@@ -12,9 +12,12 @@ import gc
 AP_SSID = "PSIC-O-TRONIC"
 AP_PASSWORD = ""  # Sin contraseña
 
-# Modelo por defecto
-DEFAULT_MODEL = "gemini-2.0-flash"
-DEFAULT_API_KEY = "AIzaSyBSXc2L5sui5ilUAQVpw1vShTUxsFs6Kj0"
+# Importar modelo y key por defecto desde config.py (fuente única de verdad)
+try:
+    from config import DEFAULT_API_KEY, DEFAULT_MODEL
+except ImportError:
+    DEFAULT_API_KEY = ""
+    DEFAULT_MODEL = "gemini-2.5-flash-lite"
 
 # ============================================================================
 # CSS STYLES
@@ -876,12 +879,12 @@ def generate_config_page(networks=None, scan_time=0, current_ssid="", current_ke
         </div>'''
         scan_info = ""
     
-    # Modelo actual
+    # Modelo actual - lista actualizada con modelos válidos
     model_options = ""
     models = [
-        ("gemini-2.0-flash", "Gemini 2.0 Flash (Rapido)"),
+        ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite"),
+        ("gemini-2.0-flash", "Gemini 2.0 Flash"),
         ("gemini-1.5-flash", "Gemini 1.5 Flash"),
-        ("gemini-1.5-pro", "Gemini 1.5 Pro (Mejor)"),
     ]
     for model_id, model_name in models:
         selected = "selected" if model_id == current_model else ""

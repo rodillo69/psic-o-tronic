@@ -24,35 +24,38 @@ def is_dst(month, day, weekday):
     """
     Determina si estamos en horario de verano (CEST).
     Espana: ultimo domingo de marzo a ultimo domingo de octubre.
-    
+
     Args:
         month: Mes (1-12)
         day: Dia del mes (1-31)
         weekday: Dia de la semana (0=lunes, 6=domingo)
-    
+
     Returns:
         True si es horario de verano
     """
     # Abril a septiembre: siempre verano
     if 4 <= month <= 9:
         return True
-    
+
     # Noviembre a febrero: siempre invierno
     if month <= 2 or month >= 11:
         return False
-    
-    # Marzo: verano desde el ultimo domingo
+
+    # Marzo: verano desde el ultimo domingo (a las 2:00 -> 3:00)
     if month == 3:
-        # Ultimo domingo: dia >= (31 - 6) y es domingo (weekday=6)
-        # O estamos despues del ultimo domingo
-        last_sunday = 31 - ((weekday + 31 - day) % 7)
+        # Calcular que dia de la semana fue el dia 31
+        # weekday actual + (31 - day) dias = weekday del 31
+        weekday_31 = (weekday + (31 - day)) % 7
+        # Ultimo domingo: retroceder desde 31 hasta encontrar domingo (6)
+        last_sunday = 31 - ((weekday_31 - 6) % 7)
         return day >= last_sunday
-    
-    # Octubre: invierno desde el ultimo domingo
+
+    # Octubre: invierno desde el ultimo domingo (a las 3:00 -> 2:00)
     if month == 10:
-        last_sunday = 31 - ((weekday + 31 - day) % 7)
+        weekday_31 = (weekday + (31 - day)) % 7
+        last_sunday = 31 - ((weekday_31 - 6) % 7)
         return day < last_sunday
-    
+
     return False
 
 

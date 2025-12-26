@@ -3,7 +3,7 @@ OTA Update System for PSIC-O-TRONIC
 Actualiza el firmware desde GitHub
 """
 
-import json
+import ujson as json
 import os
 import gc
 import machine

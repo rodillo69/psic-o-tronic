@@ -1,8 +1,8 @@
 {
-    "version": "2.3.1",
-    "changelog": "HOTFIX: Arreglar brick en pantalla bienvenida",
-    "mandatory": true,
-    "size_kb": 125,
+    "version": "2.4.0",
+    "changelog": "Mejoras: Audio no-bloqueante, fix DST, timeout API, semver",
+    "mandatory": false,
+    "size_kb": 110,
     "files": [
         "main.py",
         "career_mode.py",
@@ -17,7 +17,6 @@
         "error_handler.py",
         "config.py",
         "audio.py",
-        "ui_renderer.py",
         "lcd_chars.py",
         "lcd_api.py",
         "i2c_lcd.py",

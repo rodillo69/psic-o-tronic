@@ -1,9 +1,10 @@
 """
 PSIC-O-TRONIC - Sistema de Audio 8-bit
 Sonidos estilo chiptune/Game Boy usando PWM
+Version 2.4: Audio no-bloqueante con timers
 """
 
-from machine import Pin, PWM
+from machine import Pin, PWM, Timer
 import time
 
 # Notas musicales (frecuencias en Hz)
@@ -151,94 +152,163 @@ MELODIAS = {
 
 
 class Audio:
-    """Controlador de audio 8-bit"""
-    
+    """Controlador de audio 8-bit no-bloqueante"""
+
     def __init__(self, pin_num):
         """
         Inicializa el sistema de audio.
-        
+
         Args:
             pin_num: Número de GPIO para el speaker
         """
         self.pin = Pin(pin_num, Pin.OUT)
         self.pwm = None
         self.enabled = True
-    
-    def _tone(self, freq, duration_ms):
-        """
-        Reproduce un tono.
-        
-        Args:
-            freq: Frecuencia en Hz (0 = silencio)
-            duration_ms: Duración en milisegundos
-        """
-        if not self.enabled:
-            return
-        
-        if freq == 0:
-            # Silencio
-            if self.pwm:
-                self.pwm.deinit()
-                self.pwm = None
-            time.sleep_ms(duration_ms)
-        else:
-            # Tono
-            self.pwm = PWM(self.pin, freq=freq, duty=512)
-            time.sleep_ms(duration_ms)
+        self.timer = Timer(0)  # Timer para audio no-bloqueante
+        self._queue = []  # Cola de notas a reproducir
+        self._playing = False
+
+    def _timer_callback(self, t):
+        """Callback del timer para reproducir siguiente nota"""
+        # Apagar nota actual
+        if self.pwm:
             self.pwm.deinit()
             self.pwm = None
-    
+
+        # Si hay más notas en cola, reproducir siguiente
+        if self._queue:
+            nota, duracion = self._queue.pop(0)
+            freq = NOTAS.get(nota, 0) if isinstance(nota, str) else nota
+
+            if freq > 0:
+                self.pwm = PWM(self.pin, freq=freq, duty=512)
+
+            # Programar siguiente callback (+10ms pausa entre notas)
+            self.timer.init(mode=Timer.ONE_SHOT, period=duracion + 10,
+                           callback=self._timer_callback)
+        else:
+            self._playing = False
+
     def play(self, nombre):
         """
-        Reproduce una melodía predefinida.
-        
+        Reproduce una melodía predefinida (no-bloqueante).
+
         Args:
             nombre: Nombre de la melodía (ver MELODIAS)
         """
         if not self.enabled:
             return
-        
+
+        # Si ya está reproduciendo, detener primero
+        if self._playing:
+            self.stop()
+
+        melodia = MELODIAS.get(nombre, [])
+        if not melodia:
+            return
+
+        self._queue = list(melodia)
+        self._playing = True
+
+        # Iniciar primera nota
+        nota, duracion = self._queue.pop(0)
+        freq = NOTAS.get(nota, 0)
+
+        if freq > 0:
+            self.pwm = PWM(self.pin, freq=freq, duty=512)
+
+        self.timer.init(mode=Timer.ONE_SHOT, period=duracion + 10,
+                       callback=self._timer_callback)
+
+    def play_blocking(self, nombre):
+        """
+        Reproduce una melodía de forma bloqueante (para compatibilidad).
+
+        Args:
+            nombre: Nombre de la melodía (ver MELODIAS)
+        """
+        if not self.enabled:
+            return
+
         melodia = MELODIAS.get(nombre, [])
         for nota, duracion in melodia:
             freq = NOTAS.get(nota, 0)
-            self._tone(freq, duracion)
-            # Pequeña pausa entre notas para claridad
+            if freq == 0:
+                if self.pwm:
+                    self.pwm.deinit()
+                    self.pwm = None
+                time.sleep_ms(duracion)
+            else:
+                self.pwm = PWM(self.pin, freq=freq, duty=512)
+                time.sleep_ms(duracion)
+                self.pwm.deinit()
+                self.pwm = None
             time.sleep_ms(10)
-    
+
     def play_custom(self, melodia):
         """
-        Reproduce una melodía personalizada.
-        
+        Reproduce una melodía personalizada (no-bloqueante).
+
         Args:
             melodia: Lista de tuplas (nota, duracion_ms)
         """
         if not self.enabled:
             return
-        
-        for nota, duracion in melodia:
+
+        if self._playing:
+            self.stop()
+
+        self._queue = list(melodia)
+        self._playing = True
+
+        if self._queue:
+            nota, duracion = self._queue.pop(0)
             freq = NOTAS.get(nota, 0) if isinstance(nota, str) else nota
-            self._tone(freq, duracion)
-            time.sleep_ms(10)
-    
+
+            if freq > 0:
+                self.pwm = PWM(self.pin, freq=freq, duty=512)
+
+            self.timer.init(mode=Timer.ONE_SHOT, period=duracion + 10,
+                           callback=self._timer_callback)
+
     def beep(self, freq=1000, duration=50):
-        """Beep simple"""
-        if self.enabled:
-            self._tone(freq, duration)
-    
+        """Beep simple (no-bloqueante)"""
+        if not self.enabled:
+            return
+
+        if self._playing:
+            self.stop()
+
+        self.pwm = PWM(self.pin, freq=freq, duty=512)
+        self._playing = True
+        self.timer.init(mode=Timer.ONE_SHOT, period=duration,
+                       callback=self._timer_callback)
+
     def toggle(self):
         """Activa/desactiva el audio"""
         self.enabled = not self.enabled
+        if not self.enabled:
+            self.stop()
         return self.enabled
-    
+
     def set_enabled(self, enabled):
         """Establece si el audio está activo"""
         self.enabled = enabled
-    
+        if not enabled:
+            self.stop()
+
     def stop(self):
         """Detiene cualquier sonido"""
+        self.timer.deinit()
+        self._queue = []
+        self._playing = False
         if self.pwm:
             self.pwm.deinit()
             self.pwm = None
+
+    def is_playing(self):
+        """Retorna True si hay audio reproduciéndose"""
+        return self._playing
 
 
 # Instancia global (se inicializa desde main)

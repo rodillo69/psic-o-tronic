@@ -325,6 +325,26 @@ def clear_api_config():
     return save_config(config)
 
 
+def parse_version(version_str):
+    """
+    Parsea versión semver a tupla comparable.
+
+    Args:
+        version_str: String "X.Y" o "X.Y.Z"
+
+    Returns:
+        Tupla (major, minor, patch)
+    """
+    try:
+        parts = str(version_str).split(".")
+        major = int(parts[0]) if len(parts) > 0 else 0
+        minor = int(parts[1]) if len(parts) > 1 else 0
+        patch = int(parts[2]) if len(parts) > 2 else 0
+        return (major, minor, patch)
+    except:
+        return (0, 0, 0)
+
+
 def check_and_wipe_if_needed():
     """
     Verifica si es necesario hacer wipe de datos por actualización.
@@ -338,14 +358,12 @@ def check_and_wipe_if_needed():
     config = load_config()
     current_data_version = config.get("data_version", "0.0")
 
-    # Convertir versiones a float para comparar
-    try:
-        current_ver = float(current_data_version)
-    except:
-        current_ver = 0.0
+    # Usar comparación semver correcta (2.10 > 2.3 correctamente)
+    current_ver = parse_version(current_data_version)
+    target_ver = parse_version("2.3")
 
     # Si data_version < 2.3, hacer wipe
-    if current_ver < 2.3:
+    if current_ver < target_ver:
         print(f"[CONFIG] Data version {current_data_version} < 2.3 - Wiping data...")
 
         # Borrar todos los archivos de datos

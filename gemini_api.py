@@ -194,7 +194,8 @@ class GeminiOracle:
             res = urequests.post(
                 api_url,
                 data=payload_str,
-                headers={'Content-Type': 'application/json'}
+                headers={'Content-Type': 'application/json'},
+                timeout=15  # Timeout de 15 segundos para evitar bloqueos
             )
 
             print(f"[GEMINI] Response status: {res.status_code}")
