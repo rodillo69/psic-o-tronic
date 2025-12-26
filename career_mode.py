@@ -3513,8 +3513,24 @@ class CareerMode:
         self.menu_idx = 0
         self.scroll_idx = 0
 
+    # === PLACEHOLDER PARA FEATURES NO IMPLEMENTADAS ===
+
+    def _update_coming_soon(self, key):
+        """Estado placeholder para features pendientes"""
+        self._lcd_clear()
+        self._lcd_centered(0, "PROXIMAMENTE")
+        self._lcd_centered(1, "Esta funcion")
+        self._lcd_centered(2, "aun no esta lista")
+        self._lcd_centered(3, "[OK] Volver")
+
+        self._leds_select_only()
+
+        if key == 'SELECT' or key == 'BACK':
+            self.state = CareerState.MENU_PRINCIPAL
+            self.menu_idx = 0
+
     # === PANTALLA DE ERROR ===
-    
+
     def _update_error(self, key):
         """Pantalla de error con información amigable"""
         self._lcd_clear()
@@ -3641,6 +3657,13 @@ class CareerMode:
             CareerState.PORTAL_WIFI: self._update_portal_wifi,
             # Error
             CareerState.ERROR: self._update_error,
+            # Placeholders para features no implementadas
+            CareerState.CONFIG: self._update_coming_soon,
+            CareerState.RACHA_BONUS: self._update_coming_soon,
+            CareerState.CASO_FAMILIAR: self._update_coming_soon,
+            CareerState.CASO_COMPLETADO: self._update_coming_soon,
+            CareerState.TORNEO: self._update_coming_soon,
+            CareerState.TORNEO_RESULTADO: self._update_coming_soon,
         }
         
         while not self.exit_requested:

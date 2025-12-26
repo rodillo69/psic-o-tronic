@@ -1,8 +1,8 @@
 {
-    "version": "2.4.1",
-    "changelog": "Fix: Memory leaks, crash en pausa, variables no reseteadas",
+    "version": "2.4.2",
+    "changelog": "Fix: Estados career mode, edge cases, timeout API",
     "mandatory": false,
-    "size_kb": 110,
+    "size_kb": 112,
     "files": [
         "main.py",
         "career_mode.py",

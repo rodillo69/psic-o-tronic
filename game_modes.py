@@ -74,7 +74,7 @@ class GameSession:
     
     def get_current_player(self):
         """Obtiene el jugador actual"""
-        if self.players:
+        if self.players and 0 <= self.current_player_idx < len(self.players):
             return self.players[self.current_player_idx]
         return None
     
@@ -165,20 +165,29 @@ class GameSession:
     def next_turn(self):
         """
         Pasa al siguiente jugador (multiplayer).
-        
+
         Returns:
             True si hay más jugadores, False si no
         """
+        if not self.players:
+            return False
+
         if self.num_players <= 1:
             return self.players[0]['lives'] > 0
-        
+
         initial = self.current_player_idx
-        while True:
+        attempts = 0
+        max_attempts = self.num_players + 1  # Prevenir loop infinito
+
+        while attempts < max_attempts:
             self.current_player_idx = (self.current_player_idx + 1) % self.num_players
             if self.players[self.current_player_idx]['lives'] > 0:
                 return True
             if self.current_player_idx == initial:
                 return False
+            attempts += 1
+
+        return False  # Fallback de seguridad
     
     def get_mvp(self):
         """Obtiene el jugador con más puntos"""

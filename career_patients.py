@@ -75,7 +75,8 @@ def _call_gemini(prompt):
         res = urequests.post(
             _get_api_url(),
             data=payload_str,
-            headers={'Content-Type': 'application/json'}
+            headers={'Content-Type': 'application/json'},
+            timeout=15  # Timeout de 15 segundos
         )
         
         if res.status_code == 200:
