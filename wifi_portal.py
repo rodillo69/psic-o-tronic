@@ -14,9 +14,10 @@ AP_PASSWORD = ""  # Sin contraseña
 
 # Importar modelo y key por defecto desde config.py (fuente única de verdad)
 try:
-    from config import DEFAULT_API_KEY, DEFAULT_MODEL
+    from config import get_default_api_key, DEFAULT_MODEL
 except ImportError:
-    DEFAULT_API_KEY = ""
+    def get_default_api_key():
+        return ""
     DEFAULT_MODEL = "gemini-2.5-flash-lite"
 
 # ============================================================================
