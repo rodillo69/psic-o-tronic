@@ -85,6 +85,8 @@ class State:
     OTA_INFO = 26
     OTA_UPDATING = 27
     OTA_RESULT = 28
+    OTA_POPUP = 29  # Popup automático de actualización disponible
+    OTA_AUTO_CHECK = 30  # Verificación automática al inicio
 
 # ============================================================================
 # CLASE PRINCIPAL
@@ -146,6 +148,10 @@ class PsicOTronic:
         self.error_detail = ""
         self.error_scroll = 0
         self.error_menu_idx = 0
+
+        # OTA automático al inicio
+        self._ota_checked_on_boot = False
+        self._ota_popup_dismissed = False  # Si el usuario ya rechazó en esta sesión
         
         # Buffer LCD para evitar flickering
         self.lcd_buffer = [[' ' for _ in range(20)] for _ in range(4)]
@@ -477,18 +483,18 @@ class PsicOTronic:
     def _update_intro(self, key):
         """Estado: Intro animada"""
         step = self.frame // 5
-        
+
         if step < 8:
             self._lcd_clear()
             self._lcd_centered(0, "====================")
             self._lcd_centered(1, "  PSIC-O-TRONIC")
             self._lcd_centered(2, f"     ver {self.version}")
-            
+
             # Barra de carga
             progress = min(20, step * 3)
             bar = chr(0) * progress + "." * (20 - progress)
             self._lcd_put(0, 3, bar)
-            
+
             # LEDs secuenciales
             step_led = self.frame % 16
             self.led_up.value(1 if step_led < 4 else 0)
@@ -498,7 +504,12 @@ class PsicOTronic:
         else:
             self._leds_off()
             play_sound('boot')
-            self.state = State.MENU
+
+            # Verificar actualizaciones si OTA está disponible y no se ha checkeado
+            if OTA_AVAILABLE and not self._ota_checked_on_boot:
+                self.state = State.OTA_AUTO_CHECK
+            else:
+                self.state = State.MENU
             self.menu_idx = 0
     
     def _update_menu(self, key):
@@ -1332,7 +1343,101 @@ class PsicOTronic:
                 self.state = State.MENU
     
     # === OTA UPDATES ===
-    
+
+    def _update_ota_auto_check(self, key):
+        """Estado: Verificación automática de actualizaciones al inicio"""
+        self._lcd_clear()
+
+        # Animación de verificación
+        dots = "." * ((self.frame // 4) % 4)
+        spinner = ["|", "/", "-", "\\"][self.frame % 4]
+
+        self._lcd_centered(0, f"  Verificando {spinner}")
+        self._lcd_centered(1, "actualizaciones" + dots)
+        self._lcd_centered(2, "")
+        self._lcd_centered(3, "Espera un momento...")
+
+        # LEDs de carga
+        self.led_notify.value((self.frame // 3) % 2)
+
+        # Ejecutar check en frame 1
+        if self.frame == 1:
+            self._ota_checked_on_boot = True
+            try:
+                ota_manager.check_async(None)
+                print("[MAIN] OTA auto-check completado")
+            except Exception as e:
+                print(f"[MAIN] Error OTA auto-check: {e}")
+
+        # Esperar unos frames para que se vea la animación y luego decidir
+        if self.frame > 15:
+            self.led_notify.value(0)
+            self._leds_off()
+
+            if ota_manager.has_update() and not self._ota_popup_dismissed:
+                # Hay actualización - mostrar popup
+                self.state = State.OTA_POPUP
+            else:
+                # No hay actualización o ya se rechazó - ir al menú
+                self.state = State.MENU
+            self.menu_idx = 0
+
+    def _update_ota_popup(self, key):
+        """Estado: Popup automático de actualización disponible"""
+        self._lcd_clear()
+
+        info = ota_manager.get_update_info() if OTA_AVAILABLE else None
+        is_mandatory = info.get("mandatory", False) if info else False
+
+        # Animación de alerta
+        if is_mandatory:
+            # Actualización obligatoria - más urgente
+            alerts = ["!!! IMPORTANTE !!!", "*** IMPORTANTE ***", "### IMPORTANTE ###"]
+            self._lcd_centered(0, alerts[(self.frame // 5) % 3])
+        else:
+            if (self.frame // 6) % 2 == 0:
+                self._lcd_centered(0, "!! ACTUALIZACION !!")
+            else:
+                self._lcd_centered(0, "** ACTUALIZACION **")
+
+        # Info de la actualización
+        if info:
+            new_ver = info.get("new_version", "?")
+            current_ver = ota_manager.get_current_version()
+            changelog = info.get("changelog", "")[:18]
+
+            self._lcd_put(0, 1, f"v{current_ver} -> v{new_ver}")
+            if changelog:
+                self._lcd_centered(2, changelog)
+        else:
+            self._lcd_centered(1, "Nueva version")
+
+        # Controles según si es obligatoria
+        if is_mandatory:
+            self._lcd_centered(3, "[OK] Actualizar")
+            self.led_up.value(0)
+            self.led_down.value(0)
+        else:
+            self._lcd_put(0, 3, "[OK]Si  [^]No")
+            self.led_up.value(1)
+            self.led_down.value(0)
+
+        # LEDs: parpadeo en notify
+        self.led_notify.value((self.frame // 4) % 2)
+        self.led_select.value(1)
+
+        if key == 'SELECT':
+            # Aceptar actualización
+            self.led_notify.value(0)
+            self.state = State.OTA_UPDATING
+            self.frame = 0
+        elif not is_mandatory and (key == 'UP' or key == 'DOWN' or key == 'BACK'):
+            # Rechazar - ir al menú (solo si no es obligatoria)
+            self._ota_popup_dismissed = True
+            self.led_notify.value(0)
+            self.state = State.MENU
+            self.menu_idx = 0
+
     def _update_ota_check(self, key):
         """Verificar actualizaciones"""
         self._lcd_clear()
@@ -1491,10 +1596,12 @@ class PsicOTronic:
             State.CREDITS: self._update_credits,
             State.PAUSE: self._update_pause,
             State.ERROR: self._update_error,
+            State.OTA_AUTO_CHECK: self._update_ota_auto_check,
             State.OTA_CHECK: self._update_ota_check,
             State.OTA_INFO: self._update_ota_info,
             State.OTA_UPDATING: self._update_ota_updating,
             State.OTA_RESULT: self._update_ota_result,
+            State.OTA_POPUP: self._update_ota_popup,
         }
         
         while True:
