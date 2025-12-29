@@ -1237,9 +1237,9 @@ class PsicOTronic:
              "Sistema de logros"],
             # Página 7: Fecha
             ["-- INFO --",
-             "Proyecto iniciado",
-             "en 2024, Espana",
-             "Licencia: Privada"],
+             "Proyecto 2025",
+             "Hecho en Espana",
+             ""],
             # Página 8: Final
             ["",
              "Gracias por jugar!",
