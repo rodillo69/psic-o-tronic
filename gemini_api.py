@@ -66,7 +66,7 @@ Inspirado en South Park, Padre de Familia, Rick and Morty:
   * DEBE INCLUIR una PREGUNTA o PETICION de consejo concreta
   * Max 150 caracteres, detalles retorcidos
   * Puedes usar acentos y la letra n con virgulilla
-- Opciones: 4 CONSEJOS del psicologo que responden DIRECTAMENTE a la pregunta del paciente
+- Opciones: 4 CONSEJOS del psicologo (MAXIMO 40 CARACTERES CADA UNO, breves y directos)
 
 # REGLA CRITICA DE COHERENCIA
 Las 4 opciones DEBEN ser respuestas directas al problema planteado en el mensaje.
@@ -75,8 +75,8 @@ Aunque las respuestas sean absurdas, deben tener SENTIDO como respuesta a la pre
 
 EJEMPLO BUENO:
 Mensaje: "Doctor, mi suegra me odia. Como me la quito de encima?"
-Opciones: ["Casate con ella", "Finge tu muerte", "Envenenala", "Mudala a Cuenca"]
-(Las 4 responden a COMO quitarse a la suegra)
+Opciones: ["Casate con ella", "Finge tu muerte", "Culpala del incendio", "Mudala a Cuenca"]
+(Las 4 son BREVES, max 40 chars, y responden a COMO quitarse a la suegra)
 
 EJEMPLO MALO:
 Mensaje: "Doctor, mi suegra me odia. Como me la quito de encima?"
@@ -91,8 +91,9 @@ Opciones: ["Compra un gato", "Vete al gym", "Lee un libro", "Hazte vegano"]
 5. Mezcla el orden: la correcta puede estar en cualquier posicion (0,1,2,3)
 
 # OTRAS REGLAS
-- Feedback WIN: Consecuencia retorcida exitosa (max 20 chars)
-- Feedback LOSE: Despido/demanda absurda (max 20 chars)
+- OPCIONES: Cada opcion debe tener MAXIMO 40 caracteres. Respuestas cortas y directas.
+- Feedback WIN: Consecuencia retorcida exitosa (max 50 chars)
+- Feedback LOSE: Consecuencia desastrosa (max 50 chars)
 - NADIE MUERE en el feedback
 - Lenguaje: ESPANOL DE ESPANA, coloquial, gamberro
 - NUNCA empieces frases con signos de puntuacion

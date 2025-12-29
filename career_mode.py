@@ -245,6 +245,8 @@ class CareerMode:
         self.last_correct = False
         self.last_feedback = ""
         self.level_up_info = None
+        self._feedback_lines = []  # Líneas de feedback con wrap
+        self._feedback_scroll = 0  # Índice de scroll en feedback
         
         # Tienda El Camello
         self._tienda_idx = 0
@@ -284,6 +286,7 @@ class CareerMode:
         # Resultado paciente
         self._resultado_tipo = ""
         self._resultado_page = 0
+        self._cierre_scroll = 0  # Scroll para cierre narrativo
         
         # Opciones
         self._opciones_idx = 0
@@ -1368,76 +1371,84 @@ class CareerMode:
         self.frame = 0
     
     def _update_feedback(self, key):
-        """Estado: Mostrando feedback"""
+        """Estado: Mostrando feedback con scroll para textos largos"""
         # Sonido al inicio
         if self.frame == 1:
             if self.last_correct:
                 play_sound('correcto')
             else:
                 play_sound('incorrecto')
-        
-        self._lcd_clear()
-        
-        # Títulos variados (con racha si aplica)
-        titulos_ok = ["BIEN HECHO!", "CORRECTO!", "EXCELENTE!", "GENIAL!", "BRAVO!"]
-        titulos_mal = ["MAL...", "INCORRECTO", "ERROR", "FALLASTE", "UPS..."]
-        
-        if self.last_correct:
-            # Mostrar racha si es alta
-            racha = get_racha_actual(self.data)
-            if racha >= 3:
-                titulo = f"x{racha} RACHA!"
+
+        # Preparar líneas de feedback en primera frame
+        if self.frame <= 1:
+            self._feedback_lines = []
+            self._feedback_scroll = 0
+
+            # Título
+            if self.last_correct:
+                racha = get_racha_actual(self.data)
+                if racha >= 3:
+                    self._feedback_lines.append(f"x{racha} RACHA!")
+                else:
+                    self._feedback_lines.append("CORRECTO!")
             else:
-                titulo = titulos_ok[self.frame % len(titulos_ok)] if self.frame < 5 else "CORRECTO!"
-            self._lcd_centered(0, titulo)
-        else:
-            titulo = titulos_mal[self.frame % len(titulos_mal)] if self.frame < 5 else "INCORRECTO"
-            self._lcd_centered(0, titulo)
-        
-        # Feedback en 2 líneas (max 60 chars = 20+20+resto)
-        fb = self.last_feedback[:60] if self.last_feedback else ""
-        if len(fb) > 40:
-            # 3 líneas: dividir en 20+20+resto
-            linea1 = fb[:20]
-            linea2 = fb[20:40]
-            # Línea 3 con dinero
-            self._lcd_centered(1, linea1)
-            self._lcd_centered(2, linea2)
-            # Dinero en esquina
-            dinero_txt = f"+{self._dinero_ganado}E" if self._dinero_ganado > 0 else f"{self._dinero_ganado}E"
-            self._lcd_put(0, 3, dinero_txt)
-            self._lcd_put(14, 3, "[OK]")
-        elif len(fb) > 20:
-            # 2 líneas de feedback
-            linea1 = fb[:20]
-            linea2 = fb[20:40]
-            self._lcd_centered(1, linea1)
-            self._lcd_centered(2, linea2)
-            # Dinero con multiplicador
+                self._feedback_lines.append("INCORRECTO")
+
+            # Feedback con wrap por palabras
+            if self.last_feedback:
+                fb_wrapped = self._wrap_text(self.last_feedback)
+                self._feedback_lines.extend(fb_wrapped)
+
+            # Línea de dinero
             racha_mult = self._racha_info.get("multiplicador", 1.0) if self._racha_info else 1.0
-            dinero_txt = f"+{self._dinero_ganado}E" if self._dinero_ganado > 0 else f"{self._dinero_ganado}E"
-            if racha_mult > 1.0 and self.last_correct:
-                dinero_txt += f" x{racha_mult:.1f}"
-            self._lcd_put(0, 3, dinero_txt)
-            self._lcd_put(14, 3, "[OK]")
-        else:
-            # 1 línea de feedback
-            self._lcd_centered(1, fb)
-            # Mostrar dinero ganado (con multiplicador si aplica)
-            racha_mult = self._racha_info.get("multiplicador", 1.0) if self._racha_info else 1.0
-            dinero_txt = f"+{self._dinero_ganado}E" if self._dinero_ganado > 0 else f"{self._dinero_ganado}E"
+            if self._dinero_ganado > 0:
+                dinero_txt = f"+{self._dinero_ganado}E"
+            else:
+                dinero_txt = f"{self._dinero_ganado}E"
             if racha_mult > 1.0 and self.last_correct:
                 dinero_txt += f" (x{racha_mult:.1f})"
-            self._lcd_centered(2, dinero_txt)
+            self._feedback_lines.append("")
+            self._feedback_lines.append(dinero_txt)
+
+        self._lcd_clear()
+
+        # Mostrar con scroll (3 líneas de contenido + 1 de controles)
+        idx = self._feedback_scroll
+        for i in range(3):
+            if idx + i < len(self._feedback_lines):
+                self._lcd_centered(i, self._feedback_lines[idx + i])
+
+        # Indicadores de scroll y continuar
+        can_up = idx > 0
+        can_down = (idx + 3) < len(self._feedback_lines)
+
+        if can_up or can_down:
+            arrows = ""
+            if can_up:
+                arrows += "[^]"
+            if can_down:
+                arrows += "[v]"
+            self._lcd_put(0, 3, arrows)
+            self._lcd_put(14, 3, "[OK]>")
+            self._leds_scroll(can_up, can_down)
+        else:
             self._lcd_centered(3, "[OK] Continuar")
-        
-        # Solo LED select
-        self._leds_select_only()
-        
+            self._leds_select_only()
+
+        # Manejar scroll
+        if key == 'UP' and can_up:
+            self._feedback_scroll -= 1
+            return
+        elif key == 'DOWN' and can_down:
+            self._feedback_scroll += 1
+            return
+
         if key == 'SELECT':
             self._dinero_ganado = 0
             self._racha_info = None
-            
+            self._feedback_lines = []
+            self._feedback_scroll = 0
+
             # Verificar si hay logros pendientes
             if self._logros_pendientes:
                 self._logro_nuevo = self._logros_pendientes.pop(0)
@@ -1509,15 +1520,41 @@ class CareerMode:
             else:
                 self._lcd_centered(3, "[OK] Continuar")
         else:
-            # Página 1: Cierre narrativo
+            # Página 1: Cierre narrativo con scroll
             self._lcd_centered(0, "== DESENLACE ==")
-            # Dividir cierre en 2 líneas
-            if len(cierre) > 20:
-                self._lcd_centered(1, cierre[:20])
-                self._lcd_centered(2, cierre[20:40])
+
+            # Wrap del cierre y scroll si es largo
+            cierre_lines = self._wrap_text(cierre) if cierre else [""]
+            cierre_scroll = getattr(self, '_cierre_scroll', 0)
+
+            # Mostrar 2 líneas con scroll
+            for i in range(2):
+                if cierre_scroll + i < len(cierre_lines):
+                    self._lcd_centered(i + 1, cierre_lines[cierre_scroll + i])
+
+            # Indicadores de scroll
+            can_up = cierre_scroll > 0
+            can_down = (cierre_scroll + 2) < len(cierre_lines)
+
+            if can_up or can_down:
+                arrows = ""
+                if can_up:
+                    arrows += "[^]"
+                if can_down:
+                    arrows += "[v]"
+                self._lcd_put(0, 3, arrows)
+                self._lcd_put(14, 3, "[OK]>")
+                self._leds_scroll(can_up, can_down)
+
+                # Manejar scroll
+                if key == 'UP' and can_up:
+                    self._cierre_scroll = cierre_scroll - 1
+                    return
+                elif key == 'DOWN' and can_down:
+                    self._cierre_scroll = cierre_scroll + 1
+                    return
             else:
-                self._lcd_centered(1, cierre)
-            self._lcd_centered(3, "[OK] Continuar")
+                self._lcd_centered(3, "[OK] Continuar")
         
         # Solo LED select
         self._leds_select_only()
@@ -1531,12 +1568,14 @@ class CareerMode:
             if page == 0 and cierre:
                 # Ir a página de cierre
                 self._resultado_page = 1
+                self._cierre_scroll = 0  # Reset scroll
                 self.frame = 0
             else:
                 # Terminar
                 print("[CAREER] Saliendo de RESULTADO_PACIENTE a SCREENSAVER")
                 self._dinero_ganado = 0
                 self._resultado_page = 0
+                self._cierre_scroll = 0
 
                 # Guardar antes de salir
                 save_career(self.data)
@@ -2702,9 +2741,18 @@ class CareerMode:
         
         icono = iconos[(self.frame // 5) % 3]
         self._lcd_centered(0, f"{icono} EVENTO {icono}")
-        
-        self._lcd_centered(1, evento.get("nombre", "?")[:20])
-        self._lcd_centered(2, evento.get("desc", "")[:20])
+
+        # Nombre con scroll horizontal si es largo
+        nombre = evento.get("nombre", "?")
+        if len(nombre) > 20:
+            nombre = self._scroll_text(nombre, 20, self.frame)
+        self._lcd_centered(1, nombre)
+
+        # Descripción con scroll horizontal si es larga
+        desc = evento.get("desc", "")
+        if len(desc) > 20:
+            desc = self._scroll_text(desc, 20, self.frame + 30)
+        self._lcd_centered(2, desc)
         self._lcd_centered(3, "[OK] Continuar")
         
         self._leds_select_only()

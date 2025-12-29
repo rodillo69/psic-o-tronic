@@ -1,6 +1,6 @@
 {
-    "version": "2.5.0",
-    "changelog": "Security: API key ofuscada para evitar deteccion GitHub",
+    "version": "2.6.0",
+    "changelog": "UX: Respuestas mas cortas, feedback mejorado con scroll",
     "mandatory": true,
     "size_kb": 112,
     "files": [
