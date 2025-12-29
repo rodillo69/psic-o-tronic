@@ -853,7 +853,7 @@ class PsicOTronic:
                 self.frame = 0
     
     def _update_feedback(self, key):
-        """Estado: Mostrando feedback con respuesta correcta si falló"""
+        """Estado: Mostrando feedback con scroll para textos largos"""
         blink = (self.frame // 4) % 2 == 0
 
         # Sonido al inicio
@@ -863,67 +863,65 @@ class PsicOTronic:
             else:
                 play_sound('incorrecto')
 
-        self._lcd_clear()
+        # Preparar líneas de contenido en primera frame
+        if self.frame <= 1:
+            self.feedback_lines = []
+            self.feedback_scroll_idx = 0
 
-        if self.session.last_result_ok:
-            # ACIERTO: Mostrar feedback_win simple
-            self._lcd_centered(0, "== CORRECTO ==")
-
-            fb_lines = self._wrap_text(self.session.last_feedback)
-            start_y = 2 if len(fb_lines) == 1 else 1
-            for i, line in enumerate(fb_lines[:2]):
-                self._lcd_centered(start_y + i, line)
-
-            self._lcd_centered(3, "[OK] Continuar")
-            self._leds_select_only()
-        else:
-            # ERROR: Mostrar respuesta correcta con scroll
-            # Preparar líneas de contenido en primera frame
-            if self.frame <= 1:
-                self.feedback_lines = ["== INCORRECTO ==", ""]
+            if self.session.last_result_ok:
+                # ACIERTO: Título + feedback_win
+                self.feedback_lines.append("== CORRECTO ==")
+                self.feedback_lines.append("")
+                fb_lines = self._wrap_text(self.session.last_feedback)
+                self.feedback_lines.extend(fb_lines)
+            else:
+                # ERROR: Título + respuesta correcta + feedback_lose
+                self.feedback_lines.append("== INCORRECTO ==")
+                self.feedback_lines.append("")
                 self.feedback_lines.append("Correcta era:")
-                # Añadir texto de respuesta correcta (wrap)
                 correct_lines = self._wrap_text(self.correct_answer_text)
                 self.feedback_lines.extend(correct_lines)
                 self.feedback_lines.append("")
-                # Añadir feedback_lose (por qué estaba mal)
                 self.feedback_lines.append("Resultado:")
                 fb_lines = self._wrap_text(self.session.last_feedback)
                 self.feedback_lines.extend(fb_lines)
-                self.feedback_scroll_idx = 0
 
+        self._lcd_clear()
+
+        # LED de error parpadea
+        if not self.session.last_result_ok:
             self.led_notify.value(blink)
 
-            # Mostrar con scroll (3 líneas de contenido + 1 de controles)
-            idx = self.feedback_scroll_idx
-            for i in range(3):
-                if idx + i < len(self.feedback_lines):
-                    self._lcd_centered(i, self.feedback_lines[idx + i])
+        # Mostrar con scroll (3 líneas de contenido + 1 de controles)
+        idx = self.feedback_scroll_idx
+        for i in range(3):
+            if idx + i < len(self.feedback_lines):
+                self._lcd_centered(i, self.feedback_lines[idx + i])
 
-            # Indicadores de scroll y continuar
-            can_up = idx > 0
-            can_down = (idx + 3) < len(self.feedback_lines)
+        # Indicadores de scroll y continuar
+        can_up = idx > 0
+        can_down = (idx + 3) < len(self.feedback_lines)
 
-            if can_up or can_down:
-                arrows = ""
-                if can_up:
-                    arrows += "[^]"
-                if can_down:
-                    arrows += "[v]"
-                self._lcd_put(0, 3, arrows)
-                self._lcd_put(14, 3, "[OK]>")
-                self._leds_scroll(can_up, can_down)
-            else:
-                self._lcd_centered(3, "[OK] Continuar")
-                self._leds_select_only()
+        if can_up or can_down:
+            arrows = ""
+            if can_up:
+                arrows += "[^]"
+            if can_down:
+                arrows += "[v]"
+            self._lcd_put(0, 3, arrows)
+            self._lcd_put(14, 3, "[OK]>")
+            self._leds_scroll(can_up, can_down)
+        else:
+            self._lcd_centered(3, "[OK] Continuar")
+            self._leds_select_only()
 
-            # Manejar scroll
-            if key == 'UP' and can_up:
-                self.feedback_scroll_idx -= 1
-                return
-            elif key == 'DOWN' and can_down:
-                self.feedback_scroll_idx += 1
-                return
+        # Manejar scroll
+        if key == 'UP' and can_up:
+            self.feedback_scroll_idx -= 1
+            return
+        elif key == 'DOWN' and can_down:
+            self.feedback_scroll_idx += 1
+            return
         
         if key == 'SELECT':
             self.led_notify.value(0)

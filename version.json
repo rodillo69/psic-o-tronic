@@ -1,6 +1,6 @@
 {
-    "version": "2.6.0",
-    "changelog": "UX: Respuestas mas cortas, feedback mejorado con scroll",
+    "version": "2.6.1",
+    "changelog": "Fix: Scroll en feedback de aciertos tambien",
     "mandatory": true,
     "size_kb": 112,
     "files": [
