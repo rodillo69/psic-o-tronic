@@ -1,6 +1,6 @@
 {
-    "version": "2.8.0",
-    "changelog": "UX: Progreso visual en actualizaciones OTA",
+    "version": "2.9.0",
+    "changelog": "Career: Torneos, Casos Familiares, Combos, Regalos, Oraculo",
     "mandatory": true,
     "size_kb": 112,
     "files": [

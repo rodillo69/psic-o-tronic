@@ -890,7 +890,20 @@ class CareerMode:
             opciones.append(("crafting", "Crafting"))
         if tiene_mejora(self.data, "ruleta"):
             opciones.append(("apuestas", "Apuestas"))
-        
+        if tiene_mejora(self.data, "album_familia"):
+            caso_activo = get_caso_activo(self.data)
+            if caso_activo:
+                opciones.append(("casos", f"Caso: {caso_activo['nombre'][:8]}"))
+            else:
+                opciones.append(("casos", "Casos Familiares"))
+
+        # Torneos siempre disponibles
+        torneo_activo = self.data.get("torneo_activo")
+        if torneo_activo:
+            opciones.append(("torneos", f"Torneo: {torneo_activo['nombre'][:7]}"))
+        else:
+            opciones.append(("torneos", "Torneos"))
+
         opciones.append(("batas", "Vestuario"))
         opciones.append(("prestigio", f"Prestigio [{prestigio['nivel']}]"))
         opciones.append(("stats", "Estadisticas"))
@@ -957,6 +970,12 @@ class CareerMode:
             elif accion == "apuestas":
                 self._apuesta_cantidad = 50
                 self.state = CareerState.APUESTAS
+            elif accion == "casos":
+                self._caso_idx = 0
+                self.state = CareerState.CASO_FAMILIAR
+            elif accion == "torneos":
+                self._torneo_idx = 0
+                self.state = CareerState.TORNEO
             elif accion == "batas":
                 self._bata_idx = 0
                 self._bata_scroll = 0
@@ -1224,12 +1243,25 @@ class CareerMode:
             xp_ganada = int(XP_SESION_CORRECTA * xp_mult * xp_mult_mejora)
             add_xp(self.data, xp_ganada)
             increment_stat(self.data, "sesiones_correctas")
-            
+
             # Dinero con multiplicadores
             dinero_base = int((DINERO_SESION_OK + bonus_sesion) * dinero_mult_mejora * racha_mult)
             self._dinero_ganado = dinero_base
             add_dinero(self.data, dinero_base)
-            
+
+            # Verificar combos al acertar
+            combos_acierto = check_combo(self.data, self.paciente_actual, "acierto")
+            if combos_acierto:
+                for combo_id in combos_acierto:
+                    combo_resultado = aplicar_combo(self.data, combo_id)
+                    if combo_resultado:
+                        self._combo_actual = combo_resultado
+
+            # Registrar racha en torneo si activo
+            if self.data.get("torneo_activo"):
+                racha = get_racha_actual(self.data)
+                registrar_accion_torneo(self.data, "racha", racha)
+
             # Mostrar racha en feedback
             if self._racha_texto:
                 self.last_feedback = self._racha_texto
@@ -1325,10 +1357,33 @@ class CareerMode:
                 registrar_stat_logro(self.data, "influencers_curados")
             elif tipo == "misterioso":
                 registrar_stat_logro(self.data, "misteriosos_curados")
-            
+
+            # === VERIFICAR COMBOS AL CURAR ===
+            combos_activados = check_combo(self.data, self.paciente_actual, "curar")
+            if combos_activados:
+                for combo_id in combos_activados:
+                    combo_resultado = aplicar_combo(self.data, combo_id)
+                    if combo_resultado:
+                        self._combo_actual = combo_resultado
+                        # El combo se mostrará después del resultado
+
+            # === GENERAR REGALO DE PACIENTE ===
+            regalo = generar_regalo_paciente(self.data, self.paciente_actual)
+            if regalo:
+                self._regalo_actual = regalo
+
+            # === REGISTRAR EN TORNEO SI ACTIVO ===
+            if self.data.get("torneo_activo"):
+                registrar_accion_torneo(self.data, "curar")
+                registrar_accion_torneo(self.data, "dinero", dinero_bonus)
+
+            # === VERIFICAR VISITA DEL ORÁCULO ===
+            if generar_visita_oraculo(self.data):
+                self._visita_oraculo = True
+
             remove_paciente(self.data, self.paciente_actual["id"])
             clear_efectos_paciente(self.data, pid)
-            
+
             if level_result["nivel_cambio"] == 1:
                 nuevo_rango = generate_rank_name(level_result["nuevo_nivel"])
                 set_rango(self.data, nuevo_rango)
@@ -1336,7 +1391,7 @@ class CareerMode:
                     "nivel": level_result["nuevo_nivel"],
                     "rango": nuevo_rango
                 }
-            
+
             self.state = CareerState.RESULTADO_PACIENTE
             self._resultado_tipo = "curado"
             
@@ -1584,12 +1639,9 @@ class CareerMode:
                 self._register_activity()
                 self._wake_up()  # Asegurar backlight encendido
 
-                if self.level_up_info:
-                    print("[CAREER] -> SUBIDA_NIVEL")
-                    self.state = CareerState.SUBIDA_NIVEL
-                else:
-                    print("[CAREER] -> SCREENSAVER")
-                    self.state = CareerState.SCREENSAVER
+                # Verificar transiciones encadenadas
+                next_state = self._get_next_state_after_result()
+                self.state = next_state
                 self.paciente_actual = None
 
         elif key == 'BACK' or key == 'UP' or key == 'DOWN':
@@ -1605,13 +1657,33 @@ class CareerMode:
             self._register_activity()
             self._wake_up()
 
-            if self.level_up_info:
-                print("[CAREER] -> SUBIDA_NIVEL")
-                self.state = CareerState.SUBIDA_NIVEL
-            else:
-                print("[CAREER] -> SCREENSAVER")
-                self.state = CareerState.SCREENSAVER
+            # Verificar transiciones encadenadas
+            next_state = self._get_next_state_after_result()
+            self.state = next_state
             self.paciente_actual = None
+
+    def _get_next_state_after_result(self):
+        """Determina el siguiente estado después del resultado de paciente"""
+        # Verificar regalo pendiente
+        if hasattr(self, '_regalo_actual') and self._regalo_actual:
+            print("[CAREER] -> REGALO_PACIENTE")
+            return CareerState.REGALO_PACIENTE
+        # Verificar combo pendiente
+        if hasattr(self, '_combo_actual') and self._combo_actual:
+            print("[CAREER] -> COMBO_ACTIVADO")
+            return CareerState.COMBO_ACTIVADO
+        # Verificar visita del oráculo
+        if hasattr(self, '_visita_oraculo') and self._visita_oraculo:
+            print("[CAREER] -> ORACULO")
+            self._visita_oraculo = False
+            return CareerState.ORACULO
+        # Verificar subida de nivel
+        if self.level_up_info:
+            print("[CAREER] -> SUBIDA_NIVEL")
+            return CareerState.SUBIDA_NIVEL
+        # Por defecto, volver al screensaver
+        print("[CAREER] -> SCREENSAVER")
+        return CareerState.SCREENSAVER
     
     def _update_subida_nivel(self, key):
         """Estado: Subida de nivel con animación"""
@@ -3396,7 +3468,8 @@ class CareerMode:
             aplicar_regalo(self.data, regalo)
             save_career(self.data)
             self._regalo_actual = None
-            self.state = CareerState.RESULTADO_PACIENTE
+            # Usar función helper para determinar siguiente estado
+            self.state = self._get_next_state_after_result()
     
     # === COMBO ACTIVADO ===
     
@@ -3428,7 +3501,8 @@ class CareerMode:
         
         if key == 'SELECT':
             self._combo_actual = None
-            self.state = CareerState.FEEDBACK
+            # Usar función helper para determinar siguiente estado
+            self.state = self._get_next_state_after_result()
     
     # === OPCIONES ===
     
@@ -3561,21 +3635,368 @@ class CareerMode:
         self.menu_idx = 0
         self.scroll_idx = 0
 
-    # === PLACEHOLDER PARA FEATURES NO IMPLEMENTADAS ===
+    # === CASOS FAMILIARES ===
 
-    def _update_coming_soon(self, key):
-        """Estado placeholder para features pendientes"""
+    def _update_caso_familiar(self, key):
+        """Menú de casos familiares"""
         self._lcd_clear()
-        self._lcd_centered(0, "PROXIMAMENTE")
-        self._lcd_centered(1, "Esta funcion")
-        self._lcd_centered(2, "aun no esta lista")
-        self._lcd_centered(3, "[OK] Volver")
 
+        # Verificar si tiene la mejora necesaria
+        if not tiene_mejora(self.data, "album_familia"):
+            self._lcd_centered(0, "BLOQUEADO")
+            self._lcd_centered(1, "Necesitas comprar")
+            self._lcd_centered(2, "Album de Familia")
+            self._lcd_put(0, 3, "[OK] Volver")
+            self._leds_select_only()
+            if key == 'SELECT' or key == 'BACK':
+                self.state = CareerState.MENU_PRINCIPAL
+            return
+
+        if not hasattr(self, '_caso_idx'):
+            self._caso_idx = 0
+
+        # Verificar si hay caso activo
+        caso_activo = get_caso_activo(self.data)
+        if caso_activo:
+            # Mostrar caso en progreso
+            self._lcd_centered(0, "CASO EN CURSO")
+            self._lcd_centered(1, caso_activo["nombre"][:20])
+            prog = f"{caso_activo['miembros_curados']}/{caso_activo['miembros_total']}"
+            self._lcd_centered(2, f"Progreso: {prog}")
+            self._lcd_put(0, 3, "[OK]Continuar [^]No")
+
+            self._leds_scroll(True, False)
+
+            if key == 'SELECT':
+                # Continuar con siguiente miembro
+                siguiente = get_siguiente_familiar(self.data)
+                if siguiente:
+                    self._familiar_actual = siguiente
+                    self.state = CareerState.GENERANDO
+                else:
+                    # Caso terminado
+                    resultado = finalizar_caso_familiar(self.data)
+                    self._caso_resultado = resultado
+                    self.state = CareerState.CASO_COMPLETADO
+            elif key == 'UP' or key == 'BACK':
+                self.state = CareerState.MENU_PRINCIPAL
+            return
+
+        # Lista de casos disponibles
+        casos = list(CASOS_FAMILIARES.items())
+        total_items = len(casos) + 1  # +1 para Volver
+
+        self._lcd_put(0, 0, "CASOS FAMILIARES")
+
+        for i in range(3):
+            idx = self._caso_idx + i if self._caso_idx < len(casos) else self._caso_idx
+            if idx < len(casos):
+                caso_id, caso = casos[idx]
+                prefix = ">" if idx == self._caso_idx else " "
+                nombre = caso["nombre"][:17]
+                self._lcd_put(0, 1 + i, f"{prefix}{nombre}")
+            elif idx == len(casos):
+                prefix = ">" if idx == self._caso_idx else " "
+                self._lcd_put(0, 1 + i, f"{prefix}< Volver")
+
+        can_up = self._caso_idx > 0
+        can_down = self._caso_idx < total_items - 1
+        self._leds_scroll(can_up, can_down)
+
+        if key == 'UP' and can_up:
+            self._caso_idx -= 1
+        elif key == 'DOWN' and can_down:
+            self._caso_idx += 1
+        elif key == 'SELECT':
+            if self._caso_idx < len(casos):
+                caso_id, caso = casos[self._caso_idx]
+                iniciar_caso_familiar(self.data, caso_id)
+                save_career(self.data)
+                play_sound('mensaje')
+                # Iniciar con el primer miembro
+                siguiente = get_siguiente_familiar(self.data)
+                if siguiente:
+                    self._familiar_actual = siguiente
+                    self.state = CareerState.GENERANDO
+            else:
+                self.state = CareerState.MENU_PRINCIPAL
+        elif key == 'BACK':
+            self.state = CareerState.MENU_PRINCIPAL
+
+    def _update_caso_completado(self, key):
+        """Resultado de caso familiar completado"""
+        self._lcd_clear()
+
+        resultado = getattr(self, '_caso_resultado', None)
+        if not resultado:
+            self.state = CareerState.MENU_PRINCIPAL
+            return
+
+        if self.frame == 1:
+            if resultado["completado"]:
+                play_sound('level_up')
+            else:
+                play_sound('huye')
+
+        # Animación
+        if resultado["completado"]:
+            titulos = ["CASO COMPLETADO!", "FAMILIA CURADA!", "EXITO TOTAL!"]
+            self._lcd_centered(0, titulos[(self.frame // 10) % 3])
+        else:
+            self._lcd_centered(0, "CASO PARCIAL")
+
+        self._lcd_centered(1, f"Curados: {resultado['curados']}/{resultado['total']}")
+
+        recompensa = resultado.get("recompensa", {})
+        if recompensa.get("dinero"):
+            self._lcd_centered(2, f"+{recompensa['dinero']}E")
+            if self.frame == 1:
+                from career_data import add_dinero
+                add_dinero(self.data, recompensa["dinero"])
+                save_career(self.data)
+
+        self._lcd_put(0, 3, "[OK] Continuar")
         self._leds_select_only()
 
-        if key == 'SELECT' or key == 'BACK':
+        if key == 'SELECT':
+            self._caso_resultado = None
             self.state = CareerState.MENU_PRINCIPAL
-            self.menu_idx = 0
+
+    # === TORNEOS ===
+
+    def _update_torneo(self, key):
+        """Menú de torneos semanales"""
+        self._lcd_clear()
+
+        if not hasattr(self, '_torneo_idx'):
+            self._torneo_idx = 0
+
+        # Verificar si hay torneo activo
+        torneo_activo = self.data.get("torneo_activo")
+        if torneo_activo:
+            self._lcd_centered(0, "TORNEO ACTIVO")
+            self._lcd_centered(1, torneo_activo["nombre"][:20])
+            stats = torneo_activo["stats"]
+            self._lcd_put(0, 2, f"Curados:{stats['pacientes_curados']}")
+
+            if stats["violaciones"] > 0:
+                self._lcd_put(0, 3, f"Violaciones:{stats['violaciones']}")
+            else:
+                self._lcd_put(0, 3, "[OK]Info [^]Cancelar")
+
+            self._leds_scroll(True, False)
+
+            if key == 'UP':
+                # Cancelar torneo
+                self.data["torneo_activo"] = None
+                save_career(self.data)
+                play_sound('huye')
+            elif key == 'SELECT' or key == 'BACK':
+                self.state = CareerState.MENU_PRINCIPAL
+            return
+
+        # Lista de torneos
+        torneos = list(TORNEOS.items())
+        total_items = len(torneos) + 1
+
+        self._lcd_put(0, 0, "TORNEOS SEMANALES")
+
+        for i in range(3):
+            idx = self._torneo_idx + i if self._torneo_idx < len(torneos) else self._torneo_idx
+            if idx < len(torneos):
+                torneo_id, torneo = torneos[idx]
+                prefix = ">" if idx == self._torneo_idx else " "
+                nombre = torneo["nombre"][:17]
+                self._lcd_put(0, 1 + i, f"{prefix}{nombre}")
+            elif idx == len(torneos):
+                prefix = ">" if idx == self._torneo_idx else " "
+                self._lcd_put(0, 1 + i, f"{prefix}< Volver")
+
+        can_up = self._torneo_idx > 0
+        can_down = self._torneo_idx < total_items - 1
+        self._leds_scroll(can_up, can_down)
+
+        if key == 'UP' and can_up:
+            self._torneo_idx -= 1
+        elif key == 'DOWN' and can_down:
+            self._torneo_idx += 1
+        elif key == 'SELECT':
+            if self._torneo_idx < len(torneos):
+                torneo_id, torneo = torneos[self._torneo_idx]
+                # Mostrar detalles antes de iniciar
+                self._torneo_seleccionado = (torneo_id, torneo)
+                self._lcd_force_clear()
+                self._lcd_centered(0, torneo["nombre"][:20])
+                self._lcd_put(0, 1, torneo["desc"][:20])
+                premio = torneo.get("premio", {})
+                self._lcd_put(0, 2, f"Premio: {premio.get('dinero', 0)}E")
+                self._lcd_put(0, 3, "[OK]Iniciar [^]No")
+                self._lcd_render()
+
+                # Esperar confirmación
+                while True:
+                    time.sleep(0.1)
+                    if self.btn_select.value() == 0:
+                        iniciar_torneo(self.data, torneo_id)
+                        save_career(self.data)
+                        play_sound('mensaje')
+                        break
+                    if self.btn_up.value() == 0:
+                        break
+                time.sleep(0.2)
+            else:
+                self.state = CareerState.MENU_PRINCIPAL
+        elif key == 'BACK':
+            self.state = CareerState.MENU_PRINCIPAL
+
+    def _update_torneo_resultado(self, key):
+        """Resultado de torneo finalizado"""
+        self._lcd_clear()
+
+        resultado = getattr(self, '_torneo_resultado', None)
+        if not resultado:
+            self.state = CareerState.MENU_PRINCIPAL
+            return
+
+        if self.frame == 1:
+            if resultado["gano"]:
+                play_sound('level_up')
+            else:
+                play_sound('game_over')
+
+        if resultado["gano"]:
+            titulos = ["TORNEO GANADO!", "VICTORIA!", "CAMPEON!"]
+            self._lcd_centered(0, titulos[(self.frame // 10) % 3])
+        else:
+            self._lcd_centered(0, "TORNEO PERDIDO")
+
+        self._lcd_centered(1, resultado["torneo"][:20])
+
+        premio = resultado.get("premio")
+        if premio:
+            if premio.get("dinero"):
+                self._lcd_centered(2, f"+{premio['dinero']}E")
+                if self.frame == 1:
+                    from career_data import add_dinero
+                    add_dinero(self.data, premio["dinero"])
+            if premio.get("titulo"):
+                self._lcd_put(0, 2, f"Titulo: {premio['titulo']}")
+        else:
+            self._lcd_centered(2, "Sin premio")
+
+        self._lcd_put(0, 3, "[OK] Continuar")
+        self._leds_select_only()
+
+        if key == 'SELECT':
+            save_career(self.data)
+            self._torneo_resultado = None
+            self.state = CareerState.MENU_PRINCIPAL
+
+    # === RACHA BONUS ===
+
+    def _update_racha_bonus(self, key):
+        """Notificación de bonus por racha"""
+        self._lcd_clear()
+
+        bonus = getattr(self, '_racha_bonus_info', None)
+        if not bonus:
+            self.state = CareerState.FEEDBACK
+            return
+
+        if self.frame == 1:
+            play_sound('level_up')
+
+        # Animación de fuego
+        fuego = ["~*~", "*~*", "~*~", "***"]
+        f = fuego[(self.frame // 5) % 4]
+
+        tipo = bonus.get("tipo", "aciertos")
+        racha = bonus.get("racha", 0)
+
+        self._lcd_centered(0, f"{f} RACHA {f}")
+        self._lcd_centered(1, f"{racha} {tipo}!")
+
+        # Mostrar bonus
+        if racha >= 10:
+            self._lcd_centered(2, "EN LLAMAS! x5")
+        elif racha >= 7:
+            self._lcd_centered(2, "IMPARABLE! x3")
+        elif racha >= 5:
+            self._lcd_centered(2, "RACHA! x2")
+        elif racha >= 3:
+            self._lcd_centered(2, "Bonus activo")
+
+        self._lcd_put(0, 3, "[OK] Continuar")
+        self._leds_select_only()
+
+        if key == 'SELECT':
+            self._racha_bonus_info = None
+            self.state = CareerState.FEEDBACK
+
+    # === CONFIG (Configuración avanzada) ===
+
+    def _update_config(self, key):
+        """Configuración avanzada de la carrera"""
+        self._lcd_clear()
+
+        if not hasattr(self, '_config_idx'):
+            self._config_idx = 0
+
+        opciones = [
+            ("reset_tutorial", "Reset tutoriales"),
+            ("export_data", "Exportar datos"),
+            ("borrar_carrera", "Borrar carrera"),
+            ("volver", "< Volver")
+        ]
+
+        self._lcd_put(0, 0, "== CONFIGURACION ==")
+
+        for i in range(3):
+            idx = self._config_idx + i if self._config_idx < len(opciones) - 1 else max(0, len(opciones) - 3)
+            actual_idx = self._config_idx
+            if idx < len(opciones):
+                prefix = ">" if idx == actual_idx else " "
+                self._lcd_put(0, 1 + i, f"{prefix}{opciones[idx][1][:18]}")
+
+        can_up = self._config_idx > 0
+        can_down = self._config_idx < len(opciones) - 1
+        self._leds_scroll(can_up, can_down)
+
+        if key == 'UP' and can_up:
+            self._config_idx -= 1
+        elif key == 'DOWN' and can_down:
+            self._config_idx += 1
+        elif key == 'SELECT':
+            accion = opciones[self._config_idx][0]
+            if accion == "reset_tutorial":
+                self.data["tutoriales_vistos"] = []
+                save_career(self.data)
+                play_sound('button')
+            elif accion == "borrar_carrera":
+                # Confirmar antes de borrar
+                self._lcd_force_clear()
+                self._lcd_centered(0, "CONFIRMAR BORRADO")
+                self._lcd_centered(1, "Se perdera TODO")
+                self._lcd_centered(2, "el progreso")
+                self._lcd_put(0, 3, "[OK]Borrar [^]No")
+                self._lcd_render()
+
+                while True:
+                    time.sleep(0.1)
+                    if self.btn_select.value() == 0:
+                        # Borrar carrera
+                        from career_data import reset_career
+                        reset_career()
+                        self.data = None
+                        self.exit_requested = True
+                        return
+                    if self.btn_up.value() == 0:
+                        break
+                time.sleep(0.2)
+            elif accion == "volver":
+                self.state = CareerState.MENU_PRINCIPAL
+        elif key == 'BACK':
+            self.state = CareerState.MENU_PRINCIPAL
 
     # === PANTALLA DE ERROR ===
 
@@ -3705,13 +4126,15 @@ class CareerMode:
             CareerState.PORTAL_WIFI: self._update_portal_wifi,
             # Error
             CareerState.ERROR: self._update_error,
-            # Placeholders para features no implementadas
-            CareerState.CONFIG: self._update_coming_soon,
-            CareerState.RACHA_BONUS: self._update_coming_soon,
-            CareerState.CASO_FAMILIAR: self._update_coming_soon,
-            CareerState.CASO_COMPLETADO: self._update_coming_soon,
-            CareerState.TORNEO: self._update_coming_soon,
-            CareerState.TORNEO_RESULTADO: self._update_coming_soon,
+            # Casos familiares y torneos
+            CareerState.CASO_FAMILIAR: self._update_caso_familiar,
+            CareerState.CASO_COMPLETADO: self._update_caso_completado,
+            CareerState.TORNEO: self._update_torneo,
+            CareerState.TORNEO_RESULTADO: self._update_torneo_resultado,
+            # Racha bonus
+            CareerState.RACHA_BONUS: self._update_racha_bonus,
+            # Configuración
+            CareerState.CONFIG: self._update_config,
         }
         
         while not self.exit_requested:
