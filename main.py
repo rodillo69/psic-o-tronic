@@ -1528,28 +1528,83 @@ class PsicOTronic:
                 self.state = State.MENU
     
     def _update_ota_updating(self, key):
-        """Proceso de actualización"""
+        """Proceso de actualización con progreso visual"""
         self._lcd_clear()
-        
-        # Animación
-        spinner = ["|", "/", "-", "\\"][self.frame % 4]
-        
-        self._lcd_centered(0, "ACTUALIZANDO " + spinner)
-        self._lcd_centered(1, ota_manager.status_msg[:20])
-        self._lcd_centered(3, "No desconectar!")
-        
-        self._leds_off()
-        
-        # Ejecutar en frame 1
+
+        # Frame 1: Iniciar actualización
         if self.frame == 1:
-            def progress_cb(msg):
-                pass
-            
-            success, msg = ota_manager.perform_update(progress_cb)
-            self._ota_success = success
-            self._ota_result_msg = msg
-            self.state = State.OTA_RESULT
-            self.frame = 0
+            total, new_ver = ota_manager.start_update_steps()
+            self._ota_total_files = total
+            self._ota_new_version = new_ver
+            self._ota_current_file = ""
+            self._ota_downloading = False
+
+            if total == 0:
+                self._ota_success = False
+                self._ota_result_msg = "Sin archivos"
+                self.state = State.OTA_RESULT
+                return
+
+        # Animación spinner
+        spinner = ["|", "/", "-", "\\"][self.frame % 4]
+
+        # Obtener progreso
+        current, total, percent = ota_manager.get_update_progress()
+
+        # Línea 0: Título con spinner
+        self._lcd_centered(0, f"ACTUALIZANDO {spinner}")
+
+        # Línea 1: Barra de progreso visual
+        bar_width = 16
+        filled = int((percent / 100) * bar_width)
+        bar = "[" + chr(0) * filled + "." * (bar_width - filled) + "]"
+        self._lcd_put(2, 1, bar)
+
+        # Línea 2: Porcentaje y contador
+        progress_text = f"{percent}% ({current}/{total})"
+        self._lcd_centered(2, progress_text)
+
+        # Línea 3: Archivo actual o mensaje
+        if self._ota_current_file:
+            self._lcd_put(0, 3, self._ota_current_file[:20])
+        else:
+            self._lcd_centered(3, "No desconectar!")
+
+        # LEDs: progreso visual
+        self.led_notify.value((self.frame // 3) % 2)
+        # Encender LEDs según progreso
+        if percent >= 33:
+            self.led_up.value(1)
+        else:
+            self.led_up.value(0)
+        if percent >= 66:
+            self.led_select.value(1)
+        else:
+            self.led_select.value(0)
+        if percent >= 90:
+            self.led_down.value(1)
+        else:
+            self.led_down.value(0)
+
+        # Descargar siguiente archivo (un archivo por frame, después del frame inicial)
+        if self.frame >= 3 and not getattr(self, '_ota_downloading', False):
+            self._ota_downloading = True
+
+            done, idx, total, filename, success = ota_manager.update_next_file()
+            self._ota_current_file = filename
+
+            if done:
+                # Finalizar actualización
+                self._leds_off()
+                self.led_notify.value(0)
+                result, msg = ota_manager.finish_update_steps()
+                self._ota_success = result
+                self._ota_result_msg = msg
+                self.state = State.OTA_RESULT
+                self.frame = 0
+            else:
+                # Permitir siguiente descarga en próximo ciclo
+                self._ota_downloading = False
     
     def _update_ota_result(self, key):
         """Resultado de actualización"""

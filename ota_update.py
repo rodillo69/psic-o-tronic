@@ -251,7 +251,7 @@ def reboot():
 
 class OTAManager:
     """Manager para integración con la UI del juego"""
-    
+
     def __init__(self):
         self.update_info = None
         self.last_check = 0
@@ -259,6 +259,13 @@ class OTAManager:
         self.is_checking = False
         self.is_updating = False
         self.status_msg = ""
+
+        # Estado para actualización paso a paso
+        self._update_files = []
+        self._update_index = 0
+        self._update_success = 0
+        self._update_failed = []
+        self._update_started = False
     
     def should_auto_check(self):
         """Determina si es momento de verificar actualizaciones"""
@@ -321,6 +328,106 @@ class OTAManager:
     def get_current_version(self):
         """Retorna versión actual"""
         return get_local_version()
+
+    # === Métodos para actualización paso a paso ===
+
+    def start_update_steps(self):
+        """
+        Inicia actualización paso a paso.
+        Returns: (total_files, new_version) o (0, None) si error
+        """
+        if not self.has_update():
+            return 0, None
+
+        self._update_files = self.update_info.get("files", [])
+        self._update_index = 0
+        self._update_success = 0
+        self._update_failed = []
+        self._update_started = True
+        self.is_updating = True
+
+        return len(self._update_files), self.update_info.get("new_version", "?")
+
+    def update_next_file(self):
+        """
+        Descarga el siguiente archivo.
+        Returns: (done, current_index, total, filename, success)
+        - done: True si terminó (no hay más archivos)
+        - current_index: índice actual (1-based)
+        - total: total de archivos
+        - filename: nombre del archivo descargado
+        - success: True si este archivo se descargó OK
+        """
+        if not self._update_started or self._update_index >= len(self._update_files):
+            return True, 0, 0, "", False
+
+        filename = self._update_files[self._update_index]
+        total = len(self._update_files)
+        current = self._update_index + 1
+
+        self.status_msg = f"({current}/{total}) {filename[:12]}"
+        print(f"[OTA] Downloading {current}/{total}: {filename}")
+
+        gc.collect()
+        success = download_file(filename)
+
+        if success:
+            self._update_success += 1
+        else:
+            self._update_failed.append(filename)
+
+        self._update_index += 1
+        done = self._update_index >= len(self._update_files)
+
+        return done, current, total, filename, success
+
+    def finish_update_steps(self):
+        """
+        Finaliza la actualización paso a paso.
+        Returns: (success, message)
+        """
+        if not self._update_started:
+            return False, "No iniciada"
+
+        total = len(self._update_files)
+        success_count = self._update_success
+
+        if success_count == total:
+            save_local_version(self.update_info["new_version"], self._update_files)
+            msg = "OK v" + self.update_info["new_version"]
+            result = True
+        elif success_count > 0:
+            ok_files = [f for f in self._update_files if f not in self._update_failed]
+            save_local_version(self.update_info["new_version"], ok_files)
+            msg = f"Parcial {success_count}/{total}"
+            result = True
+        else:
+            msg = "Error descarga"
+            result = False
+
+        # Reset estado
+        self._update_started = False
+        self.is_updating = False
+        if result:
+            self.update_info = None
+
+        self.status_msg = msg
+        return result, msg
+
+    def get_update_progress(self):
+        """
+        Obtiene progreso actual.
+        Returns: (current, total, percent)
+        """
+        if not self._update_started:
+            return 0, 0, 0
+
+        total = len(self._update_files)
+        current = self._update_index
+        percent = int((current / total) * 100) if total > 0 else 0
+
+        return current, total, percent
+
 
 # Instancia global
 ota_manager = OTAManager()

@@ -1,6 +1,6 @@
 {
-    "version": "2.7.1",
-    "changelog": "UI: Creditos mejorados con mas info",
+    "version": "2.8.0",
+    "changelog": "UX: Progreso visual en actualizaciones OTA",
     "mandatory": true,
     "size_kb": 112,
     "files": [
