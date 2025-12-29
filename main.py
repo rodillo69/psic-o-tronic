@@ -1205,40 +1205,60 @@ class PsicOTronic:
             self.help_page = 0
 
         pages = [
-            ["PSIC-O-TRONIC",
-             f"Version {self.version}",
-             "Diciembre 2024",
-             ""],
-            ["Desarrollado por:",
-             "Miguel Cañadas",
-             "",
-             ""],
-            ["IA generativa:",
-             "Google Gemini",
-             "",
-             ""],
-            ["Hardware:",
-             "ESP32-S3",
+            # Página 1: Título
+            ["====================",
+             "   PSIC-O-TRONIC",
+             f"    version {self.version}",
+             "===================="],
+            # Página 2: Autor
+            ["--------------------",
+             "Creado y desarrollado",
+             "por Miguel Canadas",
+             "--------------------"],
+            # Página 3: Concepto
+            ["-- CONCEPTO --",
+             "Juego de humor negro",
+             "psicologico con casos",
+             "generados por IA"],
+            # Página 4: Hardware
+            ["-- HARDWARE --",
+             "ESP32-S3 + MicroPython",
              "LCD 20x4 I2C",
-             ""],
-            ["Version 2.0",
-             "Noviembre 2025",
+             "3 botones + 4 LEDs"],
+            # Página 5: IA
+            ["-- TECNOLOGIA --",
+             "Casos generados con",
+             "Google Gemini AI",
+             "en tiempo real"],
+            # Página 6: Funciones
+            ["-- CARACTERISTICAS --",
+             "WiFi + OTA Updates",
+             "3 modos de juego",
+             "Sistema de logros"],
+            # Página 7: Fecha
+            ["-- INFO --",
+             "Proyecto iniciado",
+             "en 2024, Espana",
+             "Licencia: Privada"],
+            # Página 8: Final
+            ["",
+             "Gracias por jugar!",
              "",
-             ""],
-            ["[OK] Volver",
-             "",
-             "",
-             ""],
+             "[OK] Volver al menu"],
         ]
-        
+
         self._lcd_clear()
         for i, line in enumerate(pages[self.help_page]):
             self._lcd_centered(i, line)
-        
+
+        # Indicador de página
+        page_indicator = f"{self.help_page + 1}/{len(pages)}"
+        self._lcd_put(16, 0, page_indicator)
+
         can_up = self.help_page > 0
         can_down = self.help_page < len(pages) - 1
         self._leds_scroll(can_up, can_down)
-        
+
         if key == 'UP' and can_up:
             self.help_page -= 1
         elif key == 'DOWN' and can_down:

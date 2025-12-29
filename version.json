@@ -1,6 +1,6 @@
 {
-    "version": "2.7.0",
-    "changelog": "Feature: Auto-check OTA al iniciar con popup",
+    "version": "2.7.1",
+    "changelog": "UI: Creditos mejorados con mas info",
     "mandatory": true,
     "size_kb": 112,
     "files": [
