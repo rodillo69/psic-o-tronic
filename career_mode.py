@@ -26,7 +26,7 @@ from career_data import (
     get_player_info, set_player_name, add_xp, set_rango,
     get_nivel, get_xp, get_xp_to_next, increment_stat, get_stats,
     get_pacientes, get_paciente_by_id, add_paciente, remove_paciente,
-    update_paciente_progreso, add_historial_paciente, count_pacientes,
+    update_paciente_progreso, add_historial_paciente, count_pacientes, can_add_paciente,
     get_mensajes_pendientes, count_mensajes_pendientes, add_mensaje,
     get_mensaje_by_id, remove_mensaje, has_mensaje_pendiente_de,
     is_setup_complete, set_setup_complete, get_backlight_timeout,
@@ -53,7 +53,8 @@ from career_data import (
 )
 from career_scheduler import (
     check_new_day, generate_daily_schedule,
-    check_scheduled_messages, should_notify
+    check_scheduled_messages, should_notify,
+    mark_message_processed, get_pending_scheduled_count
 )
 from career_patients import (
     generate_doctor_name, generate_rank_name,
@@ -625,7 +626,77 @@ class CareerMode:
             self._generating_task = "pacientes_iniciales"
             self._generating_count = 0
             self.frame = 0
-    
+
+    def _process_next_scheduled_message(self):
+        """
+        Procesa el siguiente mensaje programado pendiente.
+        Solo procesa UNO por llamada para no bloquear la UI.
+
+        Returns:
+            True si se inició generación de mensaje, False si no hay nada que procesar
+        """
+        # Obtener mensajes pendientes SIN eliminarlos
+        triggered = check_scheduled_messages(self.data, remove_processed=False)
+
+        if not triggered:
+            return False
+
+        # Procesar el primero que podamos
+        for prog in triggered:
+            paciente_id = prog["paciente_id"]
+            timestamp = prog["hora_programada"]
+
+            if paciente_id == -1:
+                # Nuevo paciente
+                if can_add_paciente(self.data):
+                    # Marcar como procesado ANTES de generar
+                    mark_message_processed(self.data, paciente_id, timestamp)
+                    self._generating_task = "nuevo_paciente"
+                    self.state = CareerState.GENERANDO
+                    self.frame = 0
+                    return True
+                else:
+                    # No hay espacio, descartar este mensaje
+                    mark_message_processed(self.data, paciente_id, timestamp)
+                    continue
+            else:
+                # Mensaje de paciente existente
+                paciente = get_paciente_by_id(self.data, paciente_id)
+
+                if not paciente:
+                    # Paciente ya no existe, descartar mensaje
+                    mark_message_processed(self.data, paciente_id, timestamp)
+                    continue
+
+                if has_mensaje_pendiente_de(self.data, paciente_id):
+                    # Ya tiene mensaje pendiente, NO procesar pero NO descartar
+                    # Intentar con el siguiente
+                    continue
+
+                # Todo OK, procesar este mensaje
+                mark_message_processed(self.data, paciente_id, timestamp)
+                self.paciente_actual = paciente
+                self._generating_task = "mensaje_sesion"
+                self.state = CareerState.GENERANDO
+                self.frame = 0
+                return True
+
+        return False
+
+    def _check_global_triggers(self):
+        """
+        Verificaciones globales que deben ejecutarse en cualquier estado.
+        Llamar desde el loop principal.
+        """
+        # Verificar nuevo día (importante para no perder programación)
+        if check_new_day(self.data):
+            generate_daily_schedule(self.data)
+            self._evento_actual = generar_evento_diario(self.data)
+            self._evento_mostrado = False
+            save_career(self.data)
+            return True
+        return False
+
     def _update_generando(self, key):
         """Estado: Generando contenido"""
         self._lcd_clear()
@@ -749,33 +820,20 @@ class CareerMode:
     
     def _update_screensaver(self, key):
         """Estado: Screensaver / Reloj"""
-        # Verificar mensajes programados
-        if self.frame % 30 == 0:
-            triggered = check_scheduled_messages(self.data)
-            for prog in triggered:
-                if prog["paciente_id"] == -1:
-                    # Nuevo paciente
-                    self._generating_task = "nuevo_paciente"
-                    self.state = CareerState.GENERANDO
-                    self.frame = 0
-                    return
-                else:
-                    # Mensaje de paciente existente
-                    self.paciente_actual = get_paciente_by_id(self.data, prog["paciente_id"])
-                    if self.paciente_actual and not has_mensaje_pendiente_de(self.data, prog["paciente_id"]):
-                        self._generating_task = "mensaje_sesion"
-                        self.state = CareerState.GENERANDO
-                        self.frame = 0
-                        return
-        
-        # Verificar nuevo dia y generar evento
-        if self.frame % 600 == 0:
+        # Verificar nuevo día PRIMERO (cada 10 segundos aprox)
+        if self.frame % 120 == 0:
             if check_new_day(self.data):
                 generate_daily_schedule(self.data)
                 # Generar evento del día
                 self._evento_actual = generar_evento_diario(self.data)
                 self._evento_mostrado = False
                 save_career(self.data)
+
+        # Verificar mensajes programados (cada 2 segundos aprox)
+        if self.frame % 25 == 0:
+            mensaje_procesado = self._process_next_scheduled_message()
+            if mensaje_procesado:
+                return
         
         # Mostrar evento del día si no se ha visto
         if not self._evento_mostrado and self._evento_actual:
@@ -4164,16 +4222,27 @@ class CareerMode:
                     # Ir a estado de error
                     self.error_msg = str(e)[:20]
                     self.state = CareerState.ERROR
-            
+
+            # Verificación global de nuevo día (en estados que lo permiten)
+            # Excluir estados de setup, generando, errores, etc.
+            estados_excluidos = {
+                CareerState.INIT, CareerState.SETUP_TITULO,
+                CareerState.SETUP_GENERATING, CareerState.SETUP_CONFIRM,
+                CareerState.GENERANDO, CareerState.ERROR,
+                CareerState.PORTAL_WIFI
+            }
+            if self.state not in estados_excluidos and self.frame % 300 == 0:
+                self._check_global_triggers()
+
             # Render
             self._lcd_render()
-            
+
             # Backlight
             self._check_backlight()
-            
+
             # Notificacion
             self._update_notification()
-            
+
             # Verificar memoria periódicamente
             self._check_memory_periodically()
             

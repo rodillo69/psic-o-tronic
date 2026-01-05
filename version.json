@@ -1,6 +1,6 @@
 {
-    "version": "2.9.0",
-    "changelog": "Career: Torneos, Casos Familiares, Combos, Regalos, Oraculo",
+    "version": "2.10.0",
+    "changelog": "Fix: Sistema de mensajes programados robusto",
     "mandatory": true,
     "size_kb": 112,
     "files": [

@@ -22,12 +22,13 @@ from career_data import (
     MIN_PACIENTES, MAX_PACIENTES
 )
 
-# Probabilidades
-PROB_MENSAJE_PACIENTE = 35       # % de que un paciente mande mensaje hoy
-PROB_SEGUNDO_MENSAJE = 15       # % de que mande un segundo mensaje
-PROB_PACIENTE_NUEVO = 25        # % de que llegue paciente nuevo (si hay espacio)
-PROB_EMERGENCIA_FINDE = 8       # % de emergencia en fin de semana
-PROB_EMERGENCIA_NOCHE = 5       # % de emergencia nocturna entre semana
+# Probabilidades (aumentadas para más actividad)
+PROB_MENSAJE_PACIENTE = 50       # % de que un paciente mande mensaje hoy
+PROB_SEGUNDO_MENSAJE = 25       # % de que mande un segundo mensaje
+PROB_PACIENTE_NUEVO = 35        # % de que llegue paciente nuevo (si hay espacio)
+PROB_EMERGENCIA_FINDE = 15      # % de emergencia en fin de semana
+PROB_EMERGENCIA_NOCHE = 10      # % de emergencia nocturna entre semana
+MIN_MENSAJES_DIA = 2            # Mínimo de mensajes a generar por día
 
 # Limites
 MAX_PACIENTES_NUEVOS_DIA = 2
@@ -105,20 +106,21 @@ def generate_daily_schedule(data):
     """
     Genera programacion de mensajes para hoy.
     Debe llamarse al inicio de cada dia.
-    
+    Garantiza un mínimo de actividad diaria.
+
     Args:
         data: Datos de carrera
     """
     today = get_today_str()
     is_finde = is_weekend()
-    
+
     print(f"[SCHEDULER] Generando horario para {today}")
-    
+
     # Limpiar programacion anterior
     clear_mensajes_programados(data)
-    
+
     pacientes = get_pacientes(data)
-    
+
     if is_finde:
         # Fin de semana: solo emergencias ocasionales
         _schedule_weekend_emergencies(data, pacientes)
@@ -127,6 +129,13 @@ def generate_daily_schedule(data):
         _schedule_workday_messages(data, pacientes)
         _schedule_new_patients(data)
         _schedule_night_emergencies(data, pacientes)
+
+    # Verificar mínimo de mensajes programados
+    programados = get_mensajes_programados(data)
+    if len(programados) < MIN_MENSAJES_DIA and pacientes:
+        _ensure_minimum_messages(data, pacientes, MIN_MENSAJES_DIA - len(programados))
+
+    print(f"[SCHEDULER] Total mensajes programados: {len(get_mensajes_programados(data))}")
 
 
 def _schedule_workday_messages(data, pacientes):
@@ -224,33 +233,73 @@ def _make_timestamp_today(minutos):
     return f"{t[0]:04d}-{t[1]:02d}-{t[2]:02d}T{hora:02d}:{mins:02d}:00"
 
 
-def check_scheduled_messages(data):
+def _ensure_minimum_messages(data, pacientes, cantidad_faltante):
+    """
+    Asegura un mínimo de mensajes programados.
+    Se llama cuando el algoritmo normal no generó suficientes.
+    """
+    if not pacientes or cantidad_faltante <= 0:
+        return
+
+    # Filtrar pacientes sin mensaje pendiente
+    disponibles = [p for p in pacientes if not has_mensaje_pendiente_de(data, p["id"])]
+
+    if not disponibles:
+        return
+
+    for i in range(min(cantidad_faltante, len(disponibles))):
+        paciente = disponibles[i % len(disponibles)]
+        hora = _random_work_time()
+        ts = _make_timestamp_today(hora)
+        add_mensaje_programado(data, paciente["id"], ts)
+        print(f"[SCHEDULER] Mensaje extra (mínimo): {paciente['nombre'][:10]} a las {_minutos_a_hora(hora)}")
+
+
+def check_scheduled_messages(data, remove_processed=False):
     """
     Comprueba si hay mensajes programados que deben activarse.
-    
+    NO elimina los mensajes de la programación por defecto.
+
     Args:
         data: Datos de carrera
-    
+        remove_processed: Si True, elimina los mensajes de la lista
+
     Returns:
-        Lista de dicts {"paciente_id": X, "timestamp": "..."} a activar
+        Lista de dicts {"paciente_id": X, "hora_programada": "..."} a activar
     """
     now = get_timestamp()
     programados = get_mensajes_programados(data)
-    
+
     to_activate = []
-    
+
     for prog in programados:
         ts = prog["hora_programada"]
-        
-        # Comparar timestamps
+
+        # Comparar timestamps (string comparison works for ISO format)
         if ts <= now:
-            to_activate.append(prog)
-    
-    # Eliminar los activados de la programacion
-    for prog in to_activate:
-        remove_mensaje_programado(data, prog["paciente_id"], prog["hora_programada"])
-    
+            to_activate.append(prog.copy())
+
+    # Solo eliminar si se solicita explícitamente
+    if remove_processed:
+        for prog in to_activate:
+            remove_mensaje_programado(data, prog["paciente_id"], prog["hora_programada"])
+
     return to_activate
+
+
+def mark_message_processed(data, paciente_id, timestamp):
+    """
+    Marca un mensaje específico como procesado (lo elimina de programación).
+    Llamar después de generar el mensaje exitosamente.
+    """
+    remove_mensaje_programado(data, paciente_id, timestamp)
+
+
+def get_pending_scheduled_count(data):
+    """Obtiene cantidad de mensajes programados pendientes de procesar"""
+    now = get_timestamp()
+    programados = get_mensajes_programados(data)
+    return sum(1 for p in programados if p["hora_programada"] <= now)
 
 
 def get_next_scheduled_time(data):
