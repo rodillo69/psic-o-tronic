@@ -693,6 +693,22 @@ class CareerMode:
         triggered = False
 
         try:
+            # Verificar reconexión tras desconexión prolongada
+            reconexion = check_reconnection(self.data)
+            if reconexion["reconectado"]:
+                horas = reconexion["horas_offline"]
+                print(f"[CAREER] Reconexión detectada tras {horas:.1f}h offline")
+
+                # Recuperar mensajes perdidos
+                recovered = recover_missed_messages(self.data)
+                if recovered > 0:
+                    print(f"[CAREER] Recuperados {recovered} mensajes pendientes")
+
+                # Actualizar actividad inmediatamente
+                update_activity(self.data)
+                save_career(self.data)
+                triggered = True
+
             # Verificar nuevo día (importante para no perder programación)
             if check_new_day(self.data):
                 generate_daily_schedule(self.data)

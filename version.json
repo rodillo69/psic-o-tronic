@@ -1,5 +1,5 @@
 {
-    "version": "2.11.1",
+    "version": "2.11.2",
     "changelog": "Fix: Estabilidad modo Mi Consulta",
     "mandatory": true,
     "size_kb": 112,
