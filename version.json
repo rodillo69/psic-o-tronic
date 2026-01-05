@@ -1,6 +1,6 @@
 {
-    "version": "2.10.0",
-    "changelog": "Fix: Sistema de mensajes programados robusto",
+    "version": "2.11.0",
+    "changelog": "Feature: Sistema robusto ante desconexiones",
     "mandatory": true,
     "size_kb": 112,
     "files": [

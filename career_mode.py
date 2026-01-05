@@ -54,7 +54,9 @@ from career_data import (
 from career_scheduler import (
     check_new_day, generate_daily_schedule,
     check_scheduled_messages, should_notify,
-    mark_message_processed, get_pending_scheduled_count
+    mark_message_processed, get_pending_scheduled_count,
+    update_activity, check_reconnection, is_message_recovered,
+    recover_missed_messages
 )
 from career_patients import (
     generate_doctor_name, generate_rank_name,
@@ -687,15 +689,40 @@ class CareerMode:
         """
         Verificaciones globales que deben ejecutarse en cualquier estado.
         Llamar desde el loop principal.
+
+        Robusto ante desconexiones:
+        - Detecta reconexiones y recupera mensajes perdidos
+        - Actualiza timestamp de actividad para tracking
         """
+        triggered = False
+
+        # Verificar reconexión tras desconexión prolongada
+        reconexion = check_reconnection(self.data)
+        if reconexion["reconectado"]:
+            horas = reconexion["horas_offline"]
+            print(f"[CAREER] Reconexión detectada tras {horas:.1f}h offline")
+
+            # Recuperar mensajes perdidos
+            recovered = recover_missed_messages(self.data)
+            if recovered > 0:
+                print(f"[CAREER] Recuperados {recovered} mensajes pendientes")
+                # Los mensajes recuperados se procesarán normalmente
+
+            # Actualizar actividad inmediatamente
+            update_activity(self.data)
+            save_career(self.data)
+            triggered = True
+
         # Verificar nuevo día (importante para no perder programación)
         if check_new_day(self.data):
             generate_daily_schedule(self.data)
             self._evento_actual = generar_evento_diario(self.data)
             self._evento_mostrado = False
+            update_activity(self.data)
             save_career(self.data)
             return True
-        return False
+
+        return triggered
 
     def _update_generando(self, key):
         """Estado: Generando contenido"""
@@ -4121,10 +4148,24 @@ class CareerMode:
     def run(self):
         """Ejecuta el modo carrera"""
         print("[CAREER] Iniciando modo Mi Consulta")
-        
+
         self._lcd_force_clear()
         self._leds_on()  # Encender LEDs de botones al iniciar
-        
+
+        # Detectar reconexión al iniciar el modo
+        reconexion = check_reconnection(self.data)
+        if reconexion["reconectado"]:
+            horas = reconexion["horas_offline"]
+            print(f"[CAREER] Reconexión: {horas:.1f}h offline")
+            # Recuperar mensajes perdidos inmediatamente
+            recovered = recover_missed_messages(self.data)
+            if recovered > 0:
+                print(f"[CAREER] {recovered} mensajes recuperados al iniciar")
+
+        # Actualizar actividad al inicio
+        update_activity(self.data)
+        save_career(self.data)
+
         state_handlers = {
             CareerState.INIT: self._update_init,
             CareerState.SETUP_TITULO: self._update_setup_titulo,
@@ -4234,6 +4275,12 @@ class CareerMode:
             if self.state not in estados_excluidos and self.frame % 300 == 0:
                 self._check_global_triggers()
 
+            # Auto-save periódico y actualización de actividad (cada ~60 seg = 750 frames)
+            # Esto garantiza persistencia ante desconexiones inesperadas
+            if self.state not in estados_excluidos and self.frame % 750 == 0:
+                update_activity(self.data)
+                save_career(self.data)
+
             # Render
             self._lcd_render()
 
@@ -4250,6 +4297,11 @@ class CareerMode:
         
         # Saliendo del modo carrera
         print("[CAREER] Saliendo al menu principal")
+
+        # Guardar estado final antes de salir
+        update_activity(self.data)
+        save_career(self.data)
+
         self._leds_off()
         self.led_notify.value(0)
         self._lcd_force_clear()

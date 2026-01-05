@@ -19,6 +19,10 @@ from career_data import (
     reset_pacientes_nuevos_hoy, get_ultimo_dia_jugado, set_ultimo_dia_jugado,
     get_programacion, add_mensaje_programado, get_mensajes_programados,
     remove_mensaje_programado, clear_mensajes_programados,
+    get_fecha_schedule, set_fecha_schedule,
+    get_mensajes_recuperados, increment_mensajes_recuperados, reset_mensajes_recuperados,
+    get_ultima_actividad, set_ultima_actividad,
+    get_paciente_by_id,
     MIN_PACIENTES, MAX_PACIENTES
 )
 
@@ -29,6 +33,11 @@ PROB_PACIENTE_NUEVO = 35        # % de que llegue paciente nuevo (si hay espacio
 PROB_EMERGENCIA_FINDE = 15      # % de emergencia en fin de semana
 PROB_EMERGENCIA_NOCHE = 10      # % de emergencia nocturna entre semana
 MIN_MENSAJES_DIA = 2            # Mínimo de mensajes a generar por día
+
+# Sistema de recuperación ante desconexiones
+MAX_MENSAJES_RECUPERAR = 3      # Máximo de mensajes a recuperar por reconexión
+HORAS_OFFLINE_URGENTE = 6       # Horas offline para considerar situación urgente
+DIAS_OFFLINE_CRITICO = 2        # Días offline para situación crítica
 
 # Limites
 MAX_PACIENTES_NUEVOS_DIA = 2
@@ -79,46 +88,192 @@ def _is_time_passed(target_minutes):
     return _get_current_minutes() >= target_minutes
 
 
+def _parse_timestamp_to_epoch(ts_str):
+    """
+    Convierte timestamp ISO a valor comparable (minutos desde 2024-01-01).
+    Solo para comparaciones relativas, no necesita precisión absoluta.
+    """
+    if not ts_str:
+        return 0
+    try:
+        parsed = parse_timestamp(ts_str)
+        if not parsed:
+            return 0
+        # Simplificado: días desde 2024 * 1440 + minutos del día
+        year, month, day, hour, minute = parsed[0], parsed[1], parsed[2], parsed[3], parsed[4]
+        days = (year - 2024) * 365 + (month - 1) * 30 + day
+        return days * 1440 + hour * 60 + minute
+    except:
+        return 0
+
+
+def get_offline_hours(data):
+    """
+    Calcula cuántas horas ha estado offline el dispositivo.
+
+    Returns:
+        Horas offline (float), 0 si no hay registro previo
+    """
+    ultima = get_ultima_actividad(data)
+    if not ultima:
+        return 0
+
+    ultima_epoch = _parse_timestamp_to_epoch(ultima)
+    ahora_epoch = _parse_timestamp_to_epoch(get_timestamp())
+
+    if ahora_epoch <= ultima_epoch:
+        return 0
+
+    diff_mins = ahora_epoch - ultima_epoch
+    return diff_mins / 60.0
+
+
+def get_offline_days(data):
+    """
+    Calcula cuántos días completos ha estado offline.
+
+    Returns:
+        Días offline (int)
+    """
+    return int(get_offline_hours(data) / 24)
+
+
+def recover_missed_messages(data):
+    """
+    Recupera mensajes que debieron llegar mientras el dispositivo estaba offline.
+    Convierte mensajes programados cuya hora ya pasó en mensajes "urgentes"
+    que se procesarán pronto.
+
+    Esta función NO genera los mensajes, solo los marca para procesamiento
+    inmediato manteniéndolos en la lista de programados.
+
+    Returns:
+        Cantidad de mensajes marcados para recuperación
+    """
+    now = get_timestamp()
+    now_epoch = _parse_timestamp_to_epoch(now)
+    programados = get_mensajes_programados(data)
+
+    if not programados:
+        return 0
+
+    recovered = 0
+    mensajes_urgentes = []
+    mensajes_futuros = []
+
+    for prog in programados:
+        ts = prog["hora_programada"]
+        ts_epoch = _parse_timestamp_to_epoch(ts)
+
+        if ts_epoch < now_epoch:
+            # Este mensaje debió llegar - marcarlo como urgente
+            if recovered < MAX_MENSAJES_RECUPERAR:
+                # Reprogramar para "ahora" (se procesará en el próximo ciclo)
+                prog["hora_programada"] = now
+                prog["es_recuperado"] = True  # Marcar como recuperado
+                mensajes_urgentes.append(prog)
+                recovered += 1
+                increment_mensajes_recuperados(data)
+                print(f"[SCHEDULER] Mensaje recuperado de paciente {prog['paciente_id']}")
+            # Los demás mensajes atrasados se descartan (no sobrecargar)
+        else:
+            mensajes_futuros.append(prog)
+
+    # Reconstruir lista: urgentes primero, luego futuros
+    data["programacion"]["proximos_mensajes"] = mensajes_urgentes + mensajes_futuros
+
+    if recovered > 0:
+        print(f"[SCHEDULER] Total mensajes recuperados: {recovered}")
+
+    return recovered
+
+
 def check_new_day(data):
     """
-    Comprueba si es un nuevo dia y resetea contadores.
-    
+    Comprueba si es un nuevo día.
+    IMPORTANTE: No borra los mensajes programados - eso lo hace generate_daily_schedule
+    después de intentar recuperar los perdidos.
+
     Args:
         data: Datos de carrera
-    
+
     Returns:
-        True si es nuevo dia
+        True si es nuevo día
     """
     today = get_today_str()
     ultimo = get_ultimo_dia_jugado(data)
-    
+
     if today != ultimo:
+        # Calcular tiempo offline para logging
+        horas_offline = get_offline_hours(data)
+        dias_offline = get_offline_days(data)
+
         print(f"[SCHEDULER] Nuevo dia: {today}")
+        if horas_offline > 0:
+            print(f"[SCHEDULER] Tiempo offline: {horas_offline:.1f}h ({dias_offline}d)")
+
+        # Actualizar día ANTES de procesar (evita loops)
         set_ultimo_dia_jugado(data, today)
         reset_pacientes_nuevos_hoy(data)
-        clear_mensajes_programados(data)
+        reset_mensajes_recuperados(data)
+
+        # IMPORTANTE: NO limpiar mensajes aquí
+        # Los mensajes del día anterior se recuperarán en generate_daily_schedule
+
         return True
-    
+
     return False
 
 
-def generate_daily_schedule(data):
+def generate_daily_schedule(data, force=False):
     """
     Genera programacion de mensajes para hoy.
     Debe llamarse al inicio de cada dia.
     Garantiza un mínimo de actividad diaria.
 
+    ROBUSTO ante desconexiones:
+    1. Primero intenta recuperar mensajes perdidos del día anterior
+    2. Solo genera nuevo schedule si no hay uno para hoy
+    3. Registra la fecha del schedule para evitar duplicados
+
     Args:
         data: Datos de carrera
+        force: Si True, regenera aunque ya exista schedule para hoy
     """
     today = get_today_str()
+    fecha_schedule = get_fecha_schedule(data)
     is_finde = is_weekend()
+
+    # Verificar si ya existe schedule para hoy
+    if fecha_schedule == today and not force:
+        print(f"[SCHEDULER] Schedule de {today} ya existe, saltando generación")
+        # Aún así, intentar recuperar mensajes perdidos por reconexión
+        recovered = recover_missed_messages(data)
+        if recovered > 0:
+            print(f"[SCHEDULER] Recuperados {recovered} mensajes tras reconexión")
+        return
 
     print(f"[SCHEDULER] Generando horario para {today}")
 
-    # Limpiar programacion anterior
+    # PASO 1: Intentar recuperar mensajes del día anterior antes de limpiar
+    recovered = recover_missed_messages(data)
+    if recovered > 0:
+        print(f"[SCHEDULER] Recuperados {recovered} mensajes antes de generar nuevo schedule")
+
+    # PASO 2: Preservar mensajes recuperados, limpiar el resto
+    mensajes_recuperados = [
+        m for m in get_mensajes_programados(data)
+        if m.get("es_recuperado", False)
+    ]
+
+    # Limpiar programación anterior (excepto recuperados)
     clear_mensajes_programados(data)
 
+    # Restaurar mensajes recuperados
+    for m in mensajes_recuperados:
+        data["programacion"]["proximos_mensajes"].append(m)
+
+    # PASO 3: Generar nuevos mensajes para hoy
     pacientes = get_pacientes(data)
 
     if is_finde:
@@ -130,12 +285,17 @@ def generate_daily_schedule(data):
         _schedule_new_patients(data)
         _schedule_night_emergencies(data, pacientes)
 
-    # Verificar mínimo de mensajes programados
+    # PASO 4: Verificar mínimo de mensajes programados
     programados = get_mensajes_programados(data)
-    if len(programados) < MIN_MENSAJES_DIA and pacientes:
-        _ensure_minimum_messages(data, pacientes, MIN_MENSAJES_DIA - len(programados))
+    mensajes_nuevos = [m for m in programados if not m.get("es_recuperado", False)]
+    if len(mensajes_nuevos) < MIN_MENSAJES_DIA and pacientes:
+        _ensure_minimum_messages(data, pacientes, MIN_MENSAJES_DIA - len(mensajes_nuevos))
 
-    print(f"[SCHEDULER] Total mensajes programados: {len(get_mensajes_programados(data))}")
+    # PASO 5: Registrar fecha del schedule
+    set_fecha_schedule(data, today)
+
+    total = len(get_mensajes_programados(data))
+    print(f"[SCHEDULER] Total mensajes programados: {total} ({recovered} recuperados)")
 
 
 def _schedule_workday_messages(data, pacientes):
@@ -343,11 +503,83 @@ def should_notify(data):
 def get_random_delay():
     """
     Genera delay aleatorio para variabilidad.
-    
+
     Returns:
         Segundos de delay (0-300)
     """
     return random.randint(0, 300)
+
+
+# === FUNCIONES DE ACTIVIDAD Y RECONEXIÓN ===
+
+def update_activity(data):
+    """
+    Actualiza el timestamp de última actividad.
+    Llamar periódicamente (cada minuto o en cambios importantes).
+    """
+    set_ultima_actividad(data, get_timestamp())
+
+
+def check_reconnection(data):
+    """
+    Verifica si hubo una reconexión tras desconexión prolongada.
+    Útil para mostrar mensajes al usuario o ajustar comportamiento.
+
+    Returns:
+        Dict con info de reconexión:
+        {
+            "reconectado": bool,
+            "horas_offline": float,
+            "dias_offline": int,
+            "es_urgente": bool (más de HORAS_OFFLINE_URGENTE),
+            "es_critico": bool (más de DIAS_OFFLINE_CRITICO)
+        }
+    """
+    horas = get_offline_hours(data)
+    dias = get_offline_days(data)
+
+    return {
+        "reconectado": horas > 0.5,  # Más de 30 minutos = reconexión significativa
+        "horas_offline": horas,
+        "dias_offline": dias,
+        "es_urgente": horas >= HORAS_OFFLINE_URGENTE,
+        "es_critico": dias >= DIAS_OFFLINE_CRITICO
+    }
+
+
+def is_message_recovered(prog):
+    """
+    Verifica si un mensaje programado es recuperado (llegó tarde).
+
+    Args:
+        prog: Dict del mensaje programado
+
+    Returns:
+        True si es un mensaje recuperado
+    """
+    return prog.get("es_recuperado", False)
+
+
+def get_recovery_stats(data):
+    """
+    Obtiene estadísticas de recuperación de mensajes.
+
+    Returns:
+        Dict con stats:
+        {
+            "mensajes_recuperados_hoy": int,
+            "mensajes_pendientes_recuperados": int
+        }
+    """
+    programados = get_mensajes_programados(data)
+    pendientes_recuperados = sum(
+        1 for p in programados if p.get("es_recuperado", False)
+    )
+
+    return {
+        "mensajes_recuperados_hoy": get_mensajes_recuperados(data),
+        "mensajes_pendientes_recuperados": pendientes_recuperados
+    }
 
 
 # Test standalone

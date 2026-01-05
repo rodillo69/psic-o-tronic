@@ -136,12 +136,15 @@ DEFAULT_CAREER = {
         "notification_sound": True,
         "ultima_sync": "",
         "ultimo_dia_jugado": "",
+        "ultima_actividad": "",          # Timestamp última vez activo
         "setup_completo": False
     },
     "programacion": {
         "proximos_mensajes": [],
         "ultimo_paciente_nuevo": "",
-        "pacientes_nuevos_hoy": 0
+        "pacientes_nuevos_hoy": 0,
+        "mensajes_recuperados": 0,       # Contador de mensajes catch-up
+        "fecha_schedule": ""             # Fecha del schedule actual
     }
 }
 
@@ -774,6 +777,42 @@ def increment_pacientes_nuevos_hoy(data):
 def reset_pacientes_nuevos_hoy(data):
     """Resetea contador de pacientes nuevos (nuevo dia)"""
     data["programacion"]["pacientes_nuevos_hoy"] = 0
+
+
+def get_fecha_schedule(data):
+    """Obtiene fecha del schedule actual"""
+    return data["programacion"].get("fecha_schedule", "")
+
+
+def set_fecha_schedule(data, fecha):
+    """Establece fecha del schedule actual"""
+    data["programacion"]["fecha_schedule"] = fecha
+
+
+def get_mensajes_recuperados(data):
+    """Obtiene contador de mensajes recuperados hoy"""
+    return data["programacion"].get("mensajes_recuperados", 0)
+
+
+def increment_mensajes_recuperados(data):
+    """Incrementa contador de mensajes recuperados"""
+    data["programacion"]["mensajes_recuperados"] = \
+        data["programacion"].get("mensajes_recuperados", 0) + 1
+
+
+def reset_mensajes_recuperados(data):
+    """Resetea contador de mensajes recuperados"""
+    data["programacion"]["mensajes_recuperados"] = 0
+
+
+def get_ultima_actividad(data):
+    """Obtiene timestamp de última actividad"""
+    return data["config"].get("ultima_actividad", "")
+
+
+def set_ultima_actividad(data, timestamp):
+    """Establece timestamp de última actividad"""
+    data["config"]["ultima_actividad"] = timestamp
 
 
 # === FUNCIONES DE CONFIG ===
