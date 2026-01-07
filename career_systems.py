@@ -2225,13 +2225,15 @@ def aplicar_modificadores_paciente(paciente, tipo_id, data):
         paciente["sesiones_totales"] = max(3, 
             paciente["sesiones_totales"] - 1)
     
-    # Tolerancia (progreso mínimo antes de huir)
-    tolerancia_base = -3
+    # Tolerancia = número de errores permitidos antes de huir (positivo)
+    # El paciente ya viene con tolerancia=3 de generate_new_patient()
+    # Solo modificamos si hay mejoras o modificadores de tipo
+    tolerancia_base = paciente.get("tolerancia", 3)
     if "tolerancia" in mods:
-        tolerancia_base += mods["tolerancia"]
+        tolerancia_base += mods["tolerancia"]  # Puede ser negativo para pacientes difíciles
     if "planta_bonita" in mejoras:
-        tolerancia_base -= 1  # Aguanta más
-    paciente["tolerancia"] = tolerancia_base
+        tolerancia_base += 1  # Mejora: paciente aguanta 1 error más
+    paciente["tolerancia"] = max(1, tolerancia_base)  # Mínimo 1 error permitido
     
     # Guardar multiplicadores de dinero/xp
     paciente["dinero_mult"] = mods.get("dinero_mult", 1.0)

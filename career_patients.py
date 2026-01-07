@@ -367,55 +367,60 @@ def generate_session_message(paciente, historial_respuestas, nivel_dificultad=1)
             historial_text += f"- Sesion {h.get('sesion', '?')}: Doctor dijo '{opcion}' -> {resultado}\n"
         historial_text += f"Progreso actual: {'positivo' if progreso > 0 else 'negativo' if progreso < 0 else 'neutro'}."
     
-    # Dificultad de las opciones
+    # Dificultad de las opciones - más clara y progresiva
     if nivel_dificultad <= 2:
-        diff_text = "Una opcion es claramente mejor que las otras."
-    elif nivel_dificultad <= 5:
-        diff_text = "Las opciones estan equilibradas, hay que pensar."
+        diff_text = """DIFICULTAD FACIL:
+- La opcion correcta debe ser OBVIA (la mas graciosa/absurda)
+- Las otras 3 opciones son claramente peores o aburridas
+- El jugador debe identificar la correcta facilmente"""
+    elif nivel_dificultad <= 4:
+        diff_text = """DIFICULTAD MEDIA:
+- La opcion correcta es la mas creativa pero no obvia
+- Hay 2 opciones que podrian parecer buenas
+- El jugador debe pensar un poco"""
+    elif nivel_dificultad <= 6:
+        diff_text = """DIFICULTAD ALTA:
+- Todas las opciones son malas de formas diferentes
+- La correcta es la mas sutil/inteligente
+- Requiere entender el humor negro"""
     else:
-        diff_text = "Todas las opciones parecen igual de malas, muy dificil."
-    
+        diff_text = """DIFICULTAD EXTREMA:
+- Todas las opciones parecen igual de malas
+- La correcta es la mas retorcida/inesperada
+- Muy dificil de adivinar"""
+
     contexto = _clean_for_prompt(paciente.get("contexto_ia", ""))
-    
+
     prompt = f"""Eres guionista de un juego de humor negro sobre un psicologo cutre.
 
 PACIENTE: {contexto}
 SESION: {sesion_num} de {paciente['sesiones_totales']}
 {historial_text}
 
-GENERA:
-1. Un MENSAJE del paciente pidiendo consejo sobre su problema especifico
-2. Cuatro RESPUESTAS del doctor que sean consejos DIRECTOS al problema planteado
+GENERA un mensaje del paciente y 4 respuestas del doctor.
 
-REGLAS CRITICAS:
-- Las 4 opciones DEBEN responder directamente a lo que pregunta el paciente
-- Si el paciente pregunta "que hago con X", las opciones son consejos sobre X
-- Las respuestas son malas/absurdas pero COHERENTES con la pregunta
-- La correcta es la mas retorcida pero sutil
-- {diff_text}
-- Si hay historial, el paciente DEBE reaccionar a lo que paso antes (ej: "Doctor, segui su consejo de gritar y...")
+{diff_text}
 
-EJEMPLO:
+REGLAS:
+- Las 4 opciones DEBEN responder a lo que pregunta el paciente
+- Respuestas absurdas/malas pero COHERENTES con la pregunta
+- Si hay historial, el paciente reacciona a lo que paso antes
+
+EJEMPLO (facil):
 Mensaje: "Mi jefe me grita, que hago?"
-Opciones: ["Gritale tu mas", "Llora en silencio", "Dimite hoy", "Echale laxante"]
-(Todas responden a QUE HACER con el jefe)
+Opciones: ["Echale laxante", "Aguanta", "Dimite", "Nada"]
+(La primera es obvia porque es la mas graciosa/absurda)
 
-Responde SOLO con JSON (sin markdown):
+Responde SOLO JSON:
 {{
-  "mensaje": "Doctor, [problema concreto y pregunta]",
-  "opciones": ["Consejo 1", "Consejo 2", "Consejo 3", "Consejo 4"],
+  "mensaje": "Doctor, [problema y pregunta max 120 chars]",
+  "opciones": ["max 18 chars", "max 18", "max 18", "max 18"],
   "correcta": 0,
-  "feedback_ok": "Resultado sarcastico de 2 lineas",
-  "feedback_mal": "Consecuencia comica de 2 lineas"
+  "feedback_ok": "max 60 chars",
+  "feedback_mal": "max 60 chars"
 }}
 
-LIMITES:
-- mensaje: max 120 caracteres
-- cada opcion: max 18 caracteres
-- feedback_ok: max 60 caracteres (2 lineas de 20)
-- feedback_mal: max 60 caracteres (2 lineas de 20)
-
-Espanol de Espana con acentos. NUNCA signos al inicio de frase."""
+Espanol de Espana. Sin signos al inicio."""
     
     result = _call_gemini(prompt)
     
