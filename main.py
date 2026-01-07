@@ -568,24 +568,33 @@ class PsicOTronic:
     
     def _update_mode_select(self, key):
         """Estado: Selección de modo"""
-        modes = ["Clásico", "Survival", "Mi Consulta", "Volver al Menu"]
+        modes = ["Clasico", "Survival", "Mi Consulta", "Volver"]
 
         self._lcd_clear()
         self._lcd_centered(0, "MODO DE JUEGO")
 
-        for i, mode in enumerate(modes):
+        # Mostrar 3 opciones visibles (líneas 1-3)
+        # Calcular ventana de scroll
+        if self.mode_idx < 2:
+            start = 0
+        elif self.mode_idx >= len(modes) - 1:
+            start = max(0, len(modes) - 3)
+        else:
+            start = self.mode_idx - 1
+
+        for row, i in enumerate(range(start, min(start + 3, len(modes)))):
             prefix = ">" if i == self.mode_idx else " "
-            self._lcd_put(1, i + 1, f"{prefix}{mode}")
+            self._lcd_put(1, row + 1, f"{prefix}{modes[i]}")
 
         # Indicadores de scroll con LEDs
         can_up = self.mode_idx > 0
         can_down = self.mode_idx < len(modes) - 1
         self._leds_scroll(can_up, can_down)
 
-        if key == 'UP':
-            self.mode_idx = (self.mode_idx - 1) % len(modes)
-        elif key == 'DOWN':
-            self.mode_idx = (self.mode_idx + 1) % len(modes)
+        if key == 'UP' and can_up:
+            self.mode_idx -= 1
+        elif key == 'DOWN' and can_down:
+            self.mode_idx += 1
         elif key == 'SELECT':
             if self.mode_idx == 2:  # Mi Consulta
                 self._launch_career_mode()
