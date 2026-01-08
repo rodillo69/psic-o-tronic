@@ -534,27 +534,31 @@ class CareerMode:
     # === ESTADOS ===
     
     def _update_init(self, key):
-        """Estado: Inicializacion"""
+        """Estado: Inicializacion con feedback visual"""
         self._lcd_clear()
         self._lcd_centered(0, "MI CONSULTA")
-        self._lcd_centered(2, "Cargando...")
-        
-        # LEDs apagados durante carga
         self._leds_off()
-        
+
         if self.frame == 1:
-            # Cargar datos
+            self._lcd_centered(2, "Cargando datos...")
+            self._lcd_render()
             self.data = load_career()
 
-            # Sincronizar hora (reintenta 3 veces)
-            if not sync_time():
-                print("[CAREER] AVISO: Hora no sincronizada, puede ser incorrecta")
+        elif self.frame == 5:
+            self._lcd_centered(2, "Sincronizando hora..")
+            self._lcd_render()
+            self._ntp_ok = sync_time()
+            if self._ntp_ok:
+                self._lcd_centered(3, "NTP OK")
+            else:
+                self._lcd_centered(3, "NTP FALLO!")
+            self._lcd_render()
 
+        elif self.frame == 15:
             # Verificar setup
             if not is_setup_complete(self.data):
                 self.state = CareerState.SETUP_TITULO
             else:
-                # Verificar nuevo dia
                 check_new_day(self.data)
                 generate_daily_schedule(self.data)
                 save_career(self.data)
@@ -880,12 +884,14 @@ class CareerMode:
         # Linea 0: Titulo + nombre
         self._lcd_put(0, 0, f"{titulo_corto}. {nombre_corto}")
         
-        # Linea 1: Fecha y hora (debug solo una vez)
+        # Linea 1: Fecha y hora
         if self.frame == 1:
             get_local_time(debug=True)  # Log detallado
         fecha = get_date_str()
         hora = get_time_str()
-        self._lcd_put(0, 1, f"{fecha}   {hora}")
+        # Mostrar ! si NTP falló
+        ntp_indicator = "" if getattr(self, '_ntp_ok', True) else "!"
+        self._lcd_put(0, 1, f"{fecha}  {hora}{ntp_indicator}")
         
         # Linea 2: Mensajes con indicador visual
         num_msgs = count_mensajes_pendientes(self.data)

@@ -1,6 +1,6 @@
 {
-    "version": "2.12.5",
-    "changelog": "Debug: Logging detallado de tiempo UTC y Local",
+    "version": "2.12.6",
+    "changelog": "Fix: Feedback visual NTP en pantalla de carga",
     "mandatory": true,
     "size_kb": 112,
     "files": [
