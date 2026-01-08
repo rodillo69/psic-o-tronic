@@ -1,6 +1,6 @@
 {
-    "version": "2.12.4",
-    "changelog": "Fix: NTP con multiples servidores y logging detallado",
+    "version": "2.12.5",
+    "changelog": "Debug: Logging detallado de tiempo UTC y Local",
     "mandatory": true,
     "size_kb": 112,
     "files": [

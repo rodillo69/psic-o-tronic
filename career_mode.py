@@ -11,7 +11,7 @@ from lcd_chars import convert_text
 from audio import play as play_sound
 from ntp_time import (
     sync_time, is_time_valid, get_date_str, get_time_str, get_timestamp,
-    get_today_str, is_quiet_hours, get_hour
+    get_today_str, is_quiet_hours, get_hour, get_local_time
 )
 
 # Importar sistema de errores
@@ -880,7 +880,9 @@ class CareerMode:
         # Linea 0: Titulo + nombre
         self._lcd_put(0, 0, f"{titulo_corto}. {nombre_corto}")
         
-        # Linea 1: Fecha y hora
+        # Linea 1: Fecha y hora (debug solo una vez)
+        if self.frame == 1:
+            get_local_time(debug=True)  # Log detallado
         fecha = get_date_str()
         hora = get_time_str()
         self._lcd_put(0, 1, f"{fecha}   {hora}")

@@ -125,16 +125,24 @@ def sync_time(max_retries=3):
     return False
 
 
-def get_local_time():
+def get_local_time(debug=False):
     """
     Obtiene hora local de Espana.
-    
+
     Returns:
         Tupla (year, month, day, hour, minute, second, weekday, yearday)
     """
-    utc = time.time()
+    utc_secs = time.time()
+    utc_tuple = time.localtime(utc_secs)
     offset = get_timezone_offset()
-    local = time.localtime(utc + offset)
+    local = time.localtime(utc_secs + offset)
+
+    if debug:
+        print(f"[TIME] UTC secs: {utc_secs}")
+        print(f"[TIME] UTC: {utc_tuple[0]}-{utc_tuple[1]:02d}-{utc_tuple[2]:02d} {utc_tuple[3]:02d}:{utc_tuple[4]:02d}")
+        print(f"[TIME] Offset: {offset} secs ({offset//3600}h)")
+        print(f"[TIME] Local: {local[0]}-{local[1]:02d}-{local[2]:02d} {local[3]:02d}:{local[4]:02d}")
+
     return local
 
 
