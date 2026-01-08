@@ -6,6 +6,7 @@
 import ntptime
 import time
 import machine
+import network
 
 # Offset horario Espana (CET = +1, CEST = +2)
 # Simplificado: +1 en invierno (nov-mar), +2 en verano (mar-oct)
@@ -67,6 +68,15 @@ def get_timezone_offset():
     return TIMEZONE_WINTER * 3600
 
 
+def is_wifi_connected():
+    """Verifica si hay conexión WiFi activa."""
+    try:
+        wlan = network.WLAN(network.STA_IF)
+        return wlan.isconnected()
+    except:
+        return False
+
+
 def is_time_valid():
     """
     Verifica si el reloj tiene una fecha razonable.
@@ -79,6 +89,12 @@ def is_time_valid():
     return t[0] >= 2024  # Año >= 2024
 
 
+def _log_current_time(prefix):
+    """Log de la hora actual para debug."""
+    t = time.localtime()
+    print(f"[NTP] {prefix}: {t[0]}-{t[1]:02d}-{t[2]:02d} {t[3]:02d}:{t[4]:02d}:{t[5]:02d}")
+
+
 def sync_time(max_retries=3):
     """
     Sincroniza con servidor NTP con reintentos.
@@ -89,9 +105,19 @@ def sync_time(max_retries=3):
     Returns:
         True si exito, False si fallo
     """
+    # Verificar WiFi primero
+    if not is_wifi_connected():
+        print("[NTP] ERROR: No hay conexión WiFi")
+        return False
+
+    _log_current_time("Antes de sync")
+
     for attempt in range(max_retries):
         try:
+            ntptime.host = "pool.ntp.org"  # Servidor NTP explícito
             ntptime.settime()
+            _log_current_time(f"Después de sync (intento {attempt + 1})")
+
             if is_time_valid():
                 print(f"[NTP] Sincronizado OK (intento {attempt + 1})")
                 return True
