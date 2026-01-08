@@ -1,6 +1,6 @@
 {
-    "version": "2.12.3",
-    "changelog": "Fix: NTP con verificacion WiFi y logging detallado",
+    "version": "2.12.4",
+    "changelog": "Fix: NTP con multiples servidores y logging detallado",
     "mandatory": true,
     "size_kb": 112,
     "files": [

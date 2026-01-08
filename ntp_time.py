@@ -6,7 +6,6 @@
 import ntptime
 import time
 import machine
-import network
 
 # Offset horario Espana (CET = +1, CEST = +2)
 # Simplificado: +1 en invierno (nov-mar), +2 en verano (mar-oct)
@@ -68,15 +67,6 @@ def get_timezone_offset():
     return TIMEZONE_WINTER * 3600
 
 
-def is_wifi_connected():
-    """Verifica si hay conexión WiFi activa."""
-    try:
-        wlan = network.WLAN(network.STA_IF)
-        return wlan.isconnected()
-    except:
-        return False
-
-
 def is_time_valid():
     """
     Verifica si el reloj tiene una fecha razonable.
@@ -105,31 +95,33 @@ def sync_time(max_retries=3):
     Returns:
         True si exito, False si fallo
     """
-    # Verificar WiFi primero
-    if not is_wifi_connected():
-        print("[NTP] ERROR: No hay conexión WiFi")
-        return False
-
     _log_current_time("Antes de sync")
 
-    for attempt in range(max_retries):
-        try:
-            ntptime.host = "pool.ntp.org"  # Servidor NTP explícito
-            ntptime.settime()
-            _log_current_time(f"Después de sync (intento {attempt + 1})")
+    # Lista de servidores NTP a probar
+    ntp_servers = ["pool.ntp.org", "time.google.com", "time.windows.com"]
 
-            if is_time_valid():
-                print(f"[NTP] Sincronizado OK (intento {attempt + 1})")
-                return True
-            else:
-                print(f"[NTP] Fecha inválida tras sync, reintentando...")
-        except Exception as e:
-            print(f"[NTP] Error intento {attempt + 1}: {e}")
+    for server in ntp_servers:
+        print(f"[NTP] Probando servidor: {server}")
+        ntptime.host = server
 
-        if attempt < max_retries - 1:
-            time.sleep(1)  # Esperar 1 segundo entre reintentos
+        for attempt in range(max_retries):
+            try:
+                ntptime.settime()
+                _log_current_time(f"Después de {server} (intento {attempt + 1})")
 
-    print(f"[NTP] Fallo tras {max_retries} intentos")
+                if is_time_valid():
+                    # Verificar que la fecha cambió (no sigue en 1 de enero si estamos en otro día)
+                    t = time.localtime()
+                    print(f"[NTP] OK con {server}: {t[0]}-{t[1]:02d}-{t[2]:02d} {t[3]:02d}:{t[4]:02d}")
+                    return True
+                else:
+                    print(f"[NTP] Fecha inválida, reintentando...")
+            except Exception as e:
+                print(f"[NTP] Error {server} intento {attempt + 1}: {e}")
+
+            time.sleep(1)
+
+    print("[NTP] Fallo con todos los servidores")
     return False
 
 
