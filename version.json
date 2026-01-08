@@ -1,6 +1,6 @@
 {
-    "version": "2.12.1",
-    "changelog": "Fix: Tolerancia pacientes y dificultad progresiva",
+    "version": "2.12.2",
+    "changelog": "Fix: Sincronizacion NTP robusta con reintentos",
     "mandatory": true,
     "size_kb": 112,
     "files": [

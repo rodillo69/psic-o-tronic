@@ -10,7 +10,7 @@ from machine import Pin
 from lcd_chars import convert_text
 from audio import play as play_sound
 from ntp_time import (
-    sync_time, get_date_str, get_time_str, get_timestamp,
+    sync_time, is_time_valid, get_date_str, get_time_str, get_timestamp,
     get_today_str, is_quiet_hours, get_hour
 )
 
@@ -545,10 +545,11 @@ class CareerMode:
         if self.frame == 1:
             # Cargar datos
             self.data = load_career()
-            
-            # Sincronizar hora
-            sync_time()
-            
+
+            # Sincronizar hora (reintenta 3 veces)
+            if not sync_time():
+                print("[CAREER] AVISO: Hora no sincronizada, puede ser incorrecta")
+
             # Verificar setup
             if not is_setup_complete(self.data):
                 self.state = CareerState.SETUP_TITULO

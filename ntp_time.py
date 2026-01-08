@@ -67,20 +67,44 @@ def get_timezone_offset():
     return TIMEZONE_WINTER * 3600
 
 
-def sync_time():
+def is_time_valid():
     """
-    Sincroniza con servidor NTP.
-    
+    Verifica si el reloj tiene una fecha razonable.
+    Si el año es anterior a 2024, probablemente no se sincronizó.
+
+    Returns:
+        True si la fecha parece válida
+    """
+    t = time.localtime()
+    return t[0] >= 2024  # Año >= 2024
+
+
+def sync_time(max_retries=3):
+    """
+    Sincroniza con servidor NTP con reintentos.
+
+    Args:
+        max_retries: Número máximo de intentos (default 3)
+
     Returns:
         True si exito, False si fallo
     """
-    try:
-        ntptime.settime()
-        print("[NTP] Sincronizado OK")
-        return True
-    except Exception as e:
-        print(f"[NTP] Error: {e}")
-        return False
+    for attempt in range(max_retries):
+        try:
+            ntptime.settime()
+            if is_time_valid():
+                print(f"[NTP] Sincronizado OK (intento {attempt + 1})")
+                return True
+            else:
+                print(f"[NTP] Fecha inválida tras sync, reintentando...")
+        except Exception as e:
+            print(f"[NTP] Error intento {attempt + 1}: {e}")
+
+        if attempt < max_retries - 1:
+            time.sleep(1)  # Esperar 1 segundo entre reintentos
+
+    print(f"[NTP] Fallo tras {max_retries} intentos")
+    return False
 
 
 def get_local_time():
