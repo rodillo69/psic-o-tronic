@@ -1,6 +1,6 @@
 {
-    "version": "2.12.6",
-    "changelog": "Fix: Feedback visual NTP en pantalla de carga",
+    "version": "2.12.7",
+    "changelog": "Mi Consulta: Muchos mas pacientes por dia",
     "mandatory": true,
     "size_kb": 112,
     "files": [

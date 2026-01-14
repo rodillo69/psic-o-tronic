@@ -352,9 +352,9 @@ DINERO_HUYE = -50
 PROGRESO_ABANDONO = -3           # Si llega a esto, abandona
 PROGRESO_CURADO = 0              # Debe completar sesiones con progreso >= 0
 
-# Pacientes
-MIN_PACIENTES = 5
-MAX_PACIENTES = 10
+# Pacientes (aumentado para más actividad)
+MIN_PACIENTES = 8
+MAX_PACIENTES = 20
 MIN_SESIONES = 5
 MAX_SESIONES = 10
 

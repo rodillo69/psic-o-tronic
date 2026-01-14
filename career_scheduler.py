@@ -26,22 +26,22 @@ from career_data import (
     MIN_PACIENTES, MAX_PACIENTES
 )
 
-# Probabilidades (aumentadas para más actividad)
-PROB_MENSAJE_PACIENTE = 50       # % de que un paciente mande mensaje hoy
-PROB_SEGUNDO_MENSAJE = 25       # % de que mande un segundo mensaje
-PROB_PACIENTE_NUEVO = 35        # % de que llegue paciente nuevo (si hay espacio)
-PROB_EMERGENCIA_FINDE = 15      # % de emergencia en fin de semana
-PROB_EMERGENCIA_NOCHE = 10      # % de emergencia nocturna entre semana
-MIN_MENSAJES_DIA = 2            # Mínimo de mensajes a generar por día
+# Probabilidades (MUY aumentadas para mucha más actividad)
+PROB_MENSAJE_PACIENTE = 85       # % de que un paciente mande mensaje hoy
+PROB_SEGUNDO_MENSAJE = 60       # % de que mande un segundo mensaje
+PROB_PACIENTE_NUEVO = 75        # % de que llegue paciente nuevo (si hay espacio)
+PROB_EMERGENCIA_FINDE = 40      # % de emergencia en fin de semana
+PROB_EMERGENCIA_NOCHE = 30      # % de emergencia nocturna entre semana
+MIN_MENSAJES_DIA = 5            # Mínimo de mensajes a generar por día
 
 # Sistema de recuperación ante desconexiones
 MAX_MENSAJES_RECUPERAR = 3      # Máximo de mensajes a recuperar por reconexión
 HORAS_OFFLINE_URGENTE = 6       # Horas offline para considerar situación urgente
 DIAS_OFFLINE_CRITICO = 2        # Días offline para situación crítica
 
-# Limites
-MAX_PACIENTES_NUEVOS_DIA = 2
-MAX_MENSAJES_PACIENTE_DIA = 2
+# Limites (aumentados para más actividad diaria)
+MAX_PACIENTES_NUEVOS_DIA = 6
+MAX_MENSAJES_PACIENTE_DIA = 4
 
 # Horarios (minutos desde medianoche)
 HORARIO_MANANA_INICIO = 9 * 60      # 9:00
