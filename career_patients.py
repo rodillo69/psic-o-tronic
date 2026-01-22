@@ -354,18 +354,27 @@ def generate_session_message(paciente, historial_respuestas, nivel_dificultad=1)
     sesion_num = paciente["sesiones_completadas"] + 1
     progreso = paciente["progreso"]
     
-    # Construir contexto del historial REAL
+    # Construir contexto del historial REAL - CRITICO para continuidad
     if not historial_respuestas:
-        historial_text = "Primera sesion con este paciente."
+        historial_text = "PRIMERA SESION: El paciente acaba de llegar, no hay historial previo."
+        continuidad_text = ""
     else:
         # Pasar las últimas 3 decisiones REALES
-        historial_text = f"Sesiones previas: {len(historial_respuestas)}.\n"
-        historial_text += "HISTORIAL DE DECISIONES (importante para coherencia):\n"
+        historial_text = f"*** HISTORIAL DE SESIONES ANTERIORES (USAR OBLIGATORIAMENTE) ***\n"
+        historial_text += f"Total sesiones previas: {len(historial_respuestas)}\n"
         for h in historial_respuestas[-3:]:
             opcion = _clean_for_prompt(h.get("opcion_texto", "?"))
-            resultado = "funciono" if h.get("correcto") else "fallo"
-            historial_text += f"- Sesion {h.get('sesion', '?')}: Doctor dijo '{opcion}' -> {resultado}\n"
-        historial_text += f"Progreso actual: {'positivo' if progreso > 0 else 'negativo' if progreso < 0 else 'neutro'}."
+            resultado = "FUNCIONO bien" if h.get("correcto") else "FALLO y empeoro"
+            historial_text += f"- Sesion {h.get('sesion', '?')}: El doctor le dijo '{opcion}' -> {resultado}\n"
+        historial_text += f"Estado emocional: {'mejorando' if progreso > 0 else 'empeorando' if progreso < 0 else 'igual'}.\n"
+
+        # Texto extra para forzar continuidad
+        ultima = historial_respuestas[-1]
+        ultima_opcion = _clean_for_prompt(ultima.get("opcion_texto", ""))
+        if ultima.get("correcto"):
+            continuidad_text = f"\nCONTINUIDAD OBLIGATORIA: El paciente DEBE mencionar que probo '{ultima_opcion}' y le fue BIEN. Cuenta como le cambio la vida."
+        else:
+            continuidad_text = f"\nCONTINUIDAD OBLIGATORIA: El paciente DEBE quejarse de que '{ultima_opcion}' fue DESASTROSO. Cuenta que le salio mal."
     
     # Dificultad de las opciones - progresiva según nivel
     if nivel_dificultad <= 2:
@@ -379,27 +388,35 @@ def generate_session_message(paciente, historial_respuestas, nivel_dificultad=1)
 
     contexto = _clean_for_prompt(paciente.get("contexto_ia", ""))
 
+    # Añadir continuidad si existe
+    continuidad_extra = continuidad_text if historial_respuestas else ""
+
     prompt = f"""Eres guionista de un juego de humor negro sobre un psicologo cutre.
 
 PACIENTE: {contexto}
 SESION: {sesion_num} de {paciente['sesiones_totales']}
+
 {historial_text}
+{continuidad_extra}
 
 GENERA:
-1. Un MENSAJE del paciente pidiendo consejo sobre su problema especifico
+1. Un MENSAJE del paciente que CONTINUA la historia de sesiones anteriores
 2. Cuatro RESPUESTAS del doctor que sean consejos DIRECTOS al problema planteado
 
-REGLAS CRITICAS:
-- Las 4 opciones DEBEN responder directamente a lo que pregunta el paciente
-- Si el paciente pregunta "que hago con X", las opciones son consejos sobre X
-- Las respuestas son malas/absurdas pero COHERENTES con la pregunta
+REGLAS CRITICAS DE CONTINUIDAD:
+- Si hay sesiones previas, el mensaje DEBE empezar contando que paso con el ultimo consejo
+- El paciente cuenta como le fue: "Doctor, hice lo de [consejo anterior] y [resultado]..."
+- La historia AVANZA, no se repite. Cada sesion es consecuencia de la anterior
 - {diff_text}
-- Si hay historial, el paciente DEBE reaccionar a lo que paso antes (ej: "Doctor, segui su consejo de gritar y...")
 
-EJEMPLO:
-Mensaje: "Mi jefe me grita, que hago?"
-Opciones: ["Gritale tu mas", "Llora en silencio", "Dimite hoy", "Echale laxante"]
-(Todas responden a QUE HACER con el jefe)
+REGLAS DE OPCIONES:
+- Las 4 opciones DEBEN responder directamente a lo que pregunta el paciente
+- Las respuestas son malas/absurdas pero COHERENTES con la pregunta
+
+EJEMPLO CON CONTINUIDAD:
+Sesion 1: Paciente tiene miedo a su suegra. Doctor dijo "Gritale"
+Sesion 2: "Doctor, le grite a mi suegra como dijo y ahora vive en mi casa para vigilarme! Que hago?"
+(El mensaje CONTINUA la historia, no la repite)
 
 Responde SOLO con JSON (sin markdown):
 {{

@@ -1,6 +1,6 @@
 {
-    "version": "2.12.7",
-    "changelog": "Mi Consulta: Muchos mas pacientes por dia",
+    "version": "2.12.8",
+    "changelog": "Fix: Scroll lateral opciones + continuidad historias",
     "mandatory": true,
     "size_kb": 112,
     "files": [

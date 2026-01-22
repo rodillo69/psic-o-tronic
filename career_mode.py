@@ -1253,14 +1253,26 @@ class CareerMode:
             else:
                 prefix = " "
             
-            # Scroll horizontal para opcion larga
-            if i == self.selected_option and len(text) > 18:
-                offset = max(0, (self.opt_scroll // 3) - 2) % (len(text) - 17 + 3)
-                if offset > len(text) - 18:
-                    offset = len(text) - 18
-                text = text[offset:offset + 18]
-            
-            self._lcd_put(0, i, f"{prefix}{text[:19]}")
+            # Scroll horizontal para opcion larga (19 chars disponibles con prefijo)
+            max_visible = 19
+            if i == self.selected_option and len(text) > max_visible:
+                # Esperar 8 frames antes de scrollear, luego avanzar cada 3 frames
+                wait_frames = 8
+                scroll_speed = 3
+                max_offset = len(text) - max_visible
+
+                if self.opt_scroll < wait_frames:
+                    offset = 0
+                else:
+                    offset = ((self.opt_scroll - wait_frames) // scroll_speed) % (max_offset + wait_frames)
+                    if offset > max_offset:
+                        offset = 0  # Volver al inicio después de pausa
+
+                text = text[offset:offset + max_visible]
+            else:
+                text = text[:max_visible]
+
+            self._lcd_put(0, i, f"{prefix}{text}")
         
         # LEDs dinamicos
         can_up = self.selected_option > 0
