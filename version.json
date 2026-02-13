@@ -1,6 +1,6 @@
 {
-    "version": "2.12.8",
-    "changelog": "Fix: Scroll lateral opciones + continuidad historias",
+    "version": "2.13.0",
+    "changelog": "Integrate orphaned mechanics + UX improvements",
     "mandatory": true,
     "size_kb": 112,
     "files": [
