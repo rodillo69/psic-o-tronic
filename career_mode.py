@@ -7,7 +7,7 @@ import time
 import gc
 from machine import Pin
 
-from lcd_chars import convert_text
+from lcd_chars import convert_text, wrap_text
 from audio import play as play_sound
 from ntp_time import (
     sync_time, is_time_valid, get_date_str, get_time_str, get_timestamp,
@@ -357,26 +357,9 @@ class CareerMode:
                 self.lcd_shadow[y][x] = ' '
     
     def _wrap_text(self, text, width=20):
-        """Divide texto en lineas"""
-        text = convert_text(str(text))
-        words = text.split()
-        lines = []
-        current = ""
-        
-        for word in words:
-            if not current:
-                current = word
-            elif len(current) + 1 + len(word) <= width:
-                current += " " + word
-            else:
-                lines.append(current)
-                current = word
-        
-        if current:
-            lines.append(current)
-        
-        return lines if lines else [""]
-    
+        """Divide texto en lineas (delegado a lcd_chars.wrap_text)"""
+        return wrap_text(text, width)
+
     # === INPUT ===
     
     def _get_input(self):
@@ -857,6 +840,23 @@ class CareerMode:
                 # Generar evento del día
                 self._evento_actual = generar_evento_diario(self.data)
                 self._evento_mostrado = False
+                # Comprobar evento de temporada
+                t = get_local_time()
+                fecha_temp = "%d/%d/%d" % (t[2], t[1], t[0])
+                temp_id, temp_evento = check_evento_temporada(fecha_temp)
+                if temp_id and temp_evento:
+                    self._evento_actual = {
+                        "id": temp_id,
+                        "nombre": temp_evento["nombre"],
+                        "desc": "Evento de temporada!",
+                        "tipo": "bueno"
+                    }
+                    # Dar item especial de temporada
+                    item_temp = get_item_temporada(temp_id)
+                    if item_temp and count_inventario(self.data) < MAX_INVENTARIO:
+                        inv = self.data.get("inventario", [])
+                        inv.append(item_temp.copy())
+                        self.data["inventario"] = inv
                 save_career(self.data)
 
         # Verificar mensajes programados (cada 2 segundos aprox)
@@ -1004,13 +1004,18 @@ class CareerMode:
         opciones.append(("volver", "Volver"))
         opciones.append(("salir", "Salir"))
         
-        # Mostrar 3 opciones (dejamos línea 0 para dinero)
+        # Mostrar 3 opciones (dejamos linea 0 para dinero)
         for i in range(3):
             idx = self.scroll_idx + i
             if idx < len(opciones):
                 prefix = ">" if idx == self.menu_idx else " "
-                self._lcd_put(0, 1 + i, f"{prefix}{opciones[idx][1][:19]}")
-        
+                label = opciones[idx][1]
+                if idx != self.menu_idx and len(label) > 19:
+                    label = label[:18] + "~"
+                else:
+                    label = label[:19]
+                self._lcd_put(0, 1 + i, "%s%s" % (prefix, label))
+
         # LEDs dinamicos
         can_up = self.menu_idx > 0
         can_down = self.menu_idx < len(opciones) - 1
@@ -1133,10 +1138,18 @@ class CareerMode:
                 msg = mensajes[item_idx]
                 paciente = get_paciente_by_id(self.data, msg["paciente_id"])
                 nombre = paciente["nombre"][:12] if paciente else "???"
-                # Indicador de tipo (nuevo vs sesion)
+                # Indicador: patient type icon for special, * for new
                 sesion = paciente["sesiones_completadas"] if paciente else 0
-                icono = "*" if sesion == 0 else " "
-                self._lcd_put(0, 1 + i, f"{prefix}{icono}{nombre}")
+                tipo = paciente.get("tipo", "normal") if paciente else "normal"
+                tipo_info = TIPOS_PACIENTE.get(tipo, {})
+                tipo_icono = tipo_info.get("icono", "").strip()
+                if tipo != "normal" and tipo_icono:
+                    icono = tipo_icono
+                elif sesion == 0:
+                    icono = "*"
+                else:
+                    icono = " "
+                self._lcd_put(0, 1 + i, "%s%s%s" % (prefix, icono, nombre))
             else:
                 self._lcd_put(0, 1 + i, f"{prefix}< Volver")
         
@@ -1175,17 +1188,23 @@ class CareerMode:
         
         # Preparar texto con indicador de sesión
         p = self.paciente_actual
-        nombre = p["nombre"][:6]
         sesion = f"{p['sesiones_completadas']+1}/{p['sesiones_totales']}"
-        
+
         # Mini barra de progreso (4 chars)
         progreso = p.get("progreso", 0)
         filled = max(0, min(4, int((progreso + 3) * 4 / 6)))
         mini_bar = "=" * filled + "-" * (4 - filled)
-        
-        # Línea 0: Nombre [ses] ====
-        # Max: 6 + 1 + 5 + 1 + 1 + 4 + 1 = 19 chars
-        header = f"{nombre} [{sesion}] {mini_bar}"
+
+        # Patient type indicator
+        tipo = p.get("tipo", "normal")
+        tipo_info = TIPOS_PACIENTE.get(tipo, {})
+        icono = tipo_info.get("icono", " ").strip()
+        if icono and tipo != "normal":
+            nombre = p["nombre"][:5]
+            header = "%s%s [%s] %s" % (icono, nombre, sesion, mini_bar)
+        else:
+            nombre = p["nombre"][:6]
+            header = "%s [%s] %s" % (nombre, sesion, mini_bar)
         
         contenido = self.mensaje_actual["contenido"]
         
@@ -1228,24 +1247,30 @@ class CareerMode:
         # Efecto: revelar respuesta
         revela = "revela" in efectos
         
-        # Efecto: eliminar opción incorrecta
-        opcion_eliminada = -1
-        if "elimina_opcion" in efectos:
-            # Encontrar una opción incorrecta al azar para tachar
+        # Efecto: eliminar opciones incorrectas
+        opciones_eliminadas = []
+        if "elimina_2_opciones" in efectos:
+            import random
+            incorrectas = [i for i in range(len(opciones)) if i != correcta]
+            if len(incorrectas) >= 2:
+                opciones_eliminadas = random.sample(incorrectas, 2)
+            elif incorrectas:
+                opciones_eliminadas = incorrectas[:]
+            remove_efecto_paciente(self.data, pid, "elimina_2_opciones")
+        elif "elimina_opcion" in efectos:
             import random
             incorrectas = [i for i in range(len(opciones)) if i != correcta]
             if incorrectas:
-                opcion_eliminada = random.choice(incorrectas)
-                # Eliminar el efecto después de usarlo (solo una vez)
+                opciones_eliminadas = [random.choice(incorrectas)]
                 remove_efecto_paciente(self.data, pid, "elimina_opcion")
-        
+
         for i in range(min(4, len(opciones))):
             text = convert_text(opciones[i])
-            
+
             # Indicadores especiales
             if revela and i == correcta:
                 prefix = "*"  # Marca la correcta
-            elif i == opcion_eliminada:
+            elif i in opciones_eliminadas:
                 prefix = "X"  # Tachada
                 text = "---TACHADA---"
             elif i == self.selected_option:
@@ -1270,10 +1295,13 @@ class CareerMode:
 
                 text = text[offset:offset + max_visible]
             else:
-                text = text[:max_visible]
+                if len(text) > max_visible:
+                    text = text[:max_visible - 1] + "~"
+                else:
+                    text = text[:max_visible]
 
-            self._lcd_put(0, i, f"{prefix}{text}")
-        
+            self._lcd_put(0, i, "%s%s" % (prefix, text))
+
         # LEDs dinamicos
         can_up = self.selected_option > 0
         can_down = self.selected_option < len(opciones) - 1
@@ -1286,8 +1314,8 @@ class CareerMode:
             self.selected_option += 1
             self.opt_scroll = 0
         elif key == 'SELECT':
-            # No permitir seleccionar opción eliminada
-            if self.selected_option == opcion_eliminada:
+            # No permitir seleccionar opcion eliminada
+            if self.selected_option in opciones_eliminadas:
                 pass  # Ignorar
             else:
                 self._process_answer()
@@ -1326,9 +1354,13 @@ class CareerMode:
         # Multiplicador de racha
         racha_mult = self._racha_info.get("multiplicador", 1.0) if self._racha_info else 1.0
         
-        # Calcular XP (con posible doble por fármaco)
-        xp_mult = 2 if "doble_xp" in efectos else 1
-        if "doble_xp" in efectos:
+        # Calcular XP (con posible doble/triple por fármaco)
+        xp_mult = 1
+        if "triple_xp" in efectos:
+            xp_mult = 3
+            remove_efecto_paciente(self.data, pid, "triple_xp")
+        elif "doble_xp" in efectos:
+            xp_mult = 2
             remove_efecto_paciente(self.data, pid, "doble_xp")
         
         # Efecto protege_fallo
@@ -1519,8 +1551,26 @@ class CareerMode:
             self.state = CareerState.RESULTADO_PACIENTE
             self._resultado_tipo = "abandona"
         else:
-            self.state = CareerState.FEEDBACK
-        
+            # Check for racha bonus milestone before feedback
+            if self._racha_info and es_correcto:
+                racha = self._racha_info.get("racha", 0)
+                config = RACHAS.get("aciertos", {})
+                bonus_dinero = config.get("bonus_dinero", {})
+                if racha in bonus_dinero:
+                    bonus = bonus_dinero[racha]
+                    add_dinero(self.data, bonus)
+                    self._dinero_ganado += bonus
+                    self._racha_bonus_info = {
+                        "tipo": "aciertos",
+                        "racha": racha,
+                        "bonus": bonus
+                    }
+                    self.state = CareerState.RACHA_BONUS
+                else:
+                    self.state = CareerState.FEEDBACK
+            else:
+                self.state = CareerState.FEEDBACK
+
         # === VERIFICAR LOGROS ===
         nuevos_logros = check_logros(self.data)
         if nuevos_logros:
@@ -1927,9 +1977,11 @@ class CareerMode:
             # Página de recetar es la última si hay inventario
             pag_recetar = num_paginas - 1 if inv else -1
             if self._ver_pagina == pag_recetar and inv:
-                # Usar fármaco
+                # Usar fármaco (catalog or crafted/special)
                 item = inv[self._inv_idx]
                 f = get_farmaco_by_id(item["id"])
+                if not f and item.get("efecto"):
+                    f = item  # Crafted/special item
                 if f:
                     self._item_seleccionado = f
                     self.state = CareerState.USAR_ITEM
@@ -1962,10 +2014,15 @@ class CareerMode:
             return "[" + "=" * filled + "-" * (width - filled) + "]"
         
         if self._ver_pagina == 0:
-            # Página 1: Info personal
-            self._lcd_put(0, 0, scroll_text(p["nombre"], 20))
-            self._lcd_put(0, 1, f"Edad: {scroll_text(p.get('edad', '?'), 14)}")
-            self._lcd_put(0, 2, f"Sexo: {scroll_text(p.get('sexo', '?'), 14)}")
+            # Página 1: Info personal + type indicator
+            tipo = p.get("tipo", "normal")
+            if tipo != "normal":
+                tipo_nombre = p.get("tipo_nombre", tipo)
+                self._lcd_put(0, 0, scroll_text("[%s] %s" % (tipo_nombre, p["nombre"]), 20))
+            else:
+                self._lcd_put(0, 0, scroll_text(p["nombre"], 20))
+            self._lcd_put(0, 1, "Edad: %s" % scroll_text(p.get('edad', '?'), 14))
+            self._lcd_put(0, 2, "Sexo: %s" % scroll_text(p.get('sexo', '?'), 14))
             self._lcd_put(0, 3, "[v]Mas       [OK]")
             
         elif self._ver_pagina == 1:
@@ -2032,9 +2089,10 @@ class CareerMode:
                 if idx < len(inv):
                     item = inv[idx]
                     f = get_farmaco_by_id(item["id"])
-                    if f:
-                        prefix = ">" if idx == self._inv_idx else " "
-                        self._lcd_put(0, 1 + i, f"{prefix}{f['nombre'][:14]} x{item['cantidad']}")
+                    nombre = f["nombre"] if f else item.get("nombre", item["id"])
+                    cant = item.get("cantidad", 1)
+                    prefix = ">" if idx == self._inv_idx else " "
+                    self._lcd_put(0, 1 + i, "%s%s x%d" % (prefix, nombre[:14], cant))
             
             self._lcd_put(0, 3, "[OK]Usar [^v]Nav")
             
@@ -2428,10 +2486,11 @@ class CareerMode:
             if idx < len(inv):
                 item = inv[idx]
                 f = get_farmaco_by_id(item["id"])
-                if f:
+                nombre_src = f["nombre"] if f else item.get("nombre", item["id"])
+                if True:
                     prefix = ">" if idx == self._inv_idx else " "
-                    cantidad_str = "x" + str(item['cantidad'])
-                    nombre = str(f['nombre'])
+                    cantidad_str = "x" + str(item.get('cantidad', 1))
+                    nombre = str(nombre_src)
                     # Espacio: 20 - 1(prefix) - len(cantidad) - 1(espacio)
                     nombre_max = 20 - 1 - len(cantidad_str) - 1
                     if nombre_max < 1:
@@ -2509,8 +2568,21 @@ class CareerMode:
     def _aplicar_farmaco(self, item_id, paciente):
         """Aplica efecto de fármaco. Returns True si se usó."""
         import random
-        
-        efecto = get_farmaco_by_id(item_id)["efecto"]
+
+        # Buscar en catálogo primero, luego en inventario (crafted/especial)
+        farmaco = get_farmaco_by_id(item_id)
+        if farmaco:
+            efecto = farmaco["efecto"]
+        else:
+            # Item crafteado o especial - buscar en inventario
+            efecto = None
+            for item in get_inventario(self.data):
+                if item.get("id") == item_id and item.get("efecto"):
+                    efecto = item["efecto"]
+                    break
+            if not efecto:
+                self._compra_msg = "Sin efecto"
+                return True
         pid = paciente["id"]
         
         if efecto == "placebo":
@@ -2574,7 +2646,83 @@ class CareerMode:
             play_sound('curado')
             # Procesar curación
             self._procesar_curacion(paciente)
-        
+
+        # === Efectos de items crafteados ===
+
+        elif efecto == "placebo_75":
+            # Placebo Dorado: 75% de funcionar
+            if random.random() < 0.75:
+                if paciente["sesiones_totales"] > paciente["sesiones_completadas"] + 1:
+                    paciente["sesiones_totales"] -= 1
+                    self._compra_msg = "Funciono! (75%)"
+                else:
+                    self._compra_msg = "Sin efecto"
+            else:
+                self._compra_msg = "Era placebo!"
+            play_sound('pastilla')
+
+        elif efecto == "placebo_100":
+            # Super Placebo: 100% funciona
+            if paciente["sesiones_totales"] > paciente["sesiones_completadas"] + 1:
+                paciente["sesiones_totales"] -= 1
+                self._compra_msg = "100% efectivo!"
+            else:
+                self._compra_msg = "Ya casi acaba"
+            play_sound('pastilla')
+
+        elif efecto == "triple_xp":
+            # Speed: x3 XP una sesion
+            add_efecto_paciente(self.data, pid, "triple_xp")
+            self._compra_msg = "Triple XP activo!"
+            play_sound('cafe')
+
+        elif efecto == "reduce_sesion_3":
+            # Coma Inducido: -3 sesiones
+            reducidas = 0
+            for _ in range(3):
+                if paciente["sesiones_totales"] > paciente["sesiones_completadas"] + 1:
+                    paciente["sesiones_totales"] -= 1
+                    reducidas += 1
+            self._compra_msg = "-%d sesiones!" % reducidas if reducidas else "Ya casi acaba"
+            play_sound('pastilla')
+
+        elif efecto == "elimina_2_opciones":
+            # Mindcontrol: elimina 2 opciones incorrectas
+            add_efecto_paciente(self.data, pid, "elimina_2_opciones")
+            self._compra_msg = "Mindcontrol OK!"
+            play_sound('electroshock')
+
+        elif efecto == "revela_protege":
+            # Viaje Astral: revela respuesta + protege fallo
+            add_efecto_paciente(self.data, pid, "revela")
+            add_efecto_paciente(self.data, pid, "protege_fallo")
+            self._compra_msg = "Revela+Protege!"
+            play_sound('hipnosis')
+
+        elif efecto == "ruleta_rusa":
+            # Coctel Letal: 50/50 cura o huye
+            if random.random() < 0.5:
+                paciente["sesiones_completadas"] = paciente["sesiones_totales"]
+                paciente["progreso"] = 10
+                self._compra_msg = "CURADO! (suerte)"
+                play_sound('curado')
+                self._procesar_curacion(paciente)
+            else:
+                paciente["progreso"] = -10
+                self._compra_msg = "HUYO! (mala suerte)"
+                play_sound('huye')
+
+        elif efecto == "zombie_total":
+            # Zombificador: no huye + no pierde progreso
+            add_efecto_paciente(self.data, pid, "no_huir")
+            add_efecto_paciente(self.data, pid, "protege_fallo")
+            self._compra_msg = "Zombie total!"
+            play_sound('lobotomia')
+
+        else:
+            self._compra_msg = "Efecto aplicado"
+            play_sound('pastilla')
+
         return True
     
     def _procesar_curacion(self, paciente):
@@ -4020,15 +4168,18 @@ class CareerMode:
         self._lcd_centered(0, f"{f} RACHA {f}")
         self._lcd_centered(1, f"{racha} {tipo}!")
 
-        # Mostrar bonus
-        if racha >= 10:
-            self._lcd_centered(2, "EN LLAMAS! x5")
-        elif racha >= 7:
-            self._lcd_centered(2, "IMPARABLE! x3")
-        elif racha >= 5:
-            self._lcd_centered(2, "RACHA! x2")
-        elif racha >= 3:
-            self._lcd_centered(2, "Bonus activo")
+        # Mostrar bonus con dinero
+        dinero_bonus = bonus.get("bonus", 0)
+        if racha >= 50:
+            self._lcd_centered(2, "MITICO! +%dE" % dinero_bonus)
+        elif racha >= 30:
+            self._lcd_centered(2, "LEYENDA! +%dE" % dinero_bonus)
+        elif racha >= 20:
+            self._lcd_centered(2, "DIOS! +%dE" % dinero_bonus)
+        elif racha >= 10:
+            self._lcd_centered(2, "EN LLAMAS! +%dE" % dinero_bonus)
+        else:
+            self._lcd_centered(2, "Bonus +%dE" % dinero_bonus)
 
         self._lcd_put(0, 3, "[OK] Continuar")
         self._leds_select_only()

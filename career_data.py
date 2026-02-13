@@ -971,7 +971,7 @@ def get_inventario(data):
 def count_inventario(data):
     """Cuenta items totales en inventario"""
     inv = get_inventario(data)
-    return sum(item.get("cantidad", 0) for item in inv)
+    return sum(item.get("cantidad", 1) for item in inv)
 
 
 def has_item(data, item_id):
@@ -1019,11 +1019,12 @@ def remove_item(data, item_id, cantidad=1):
     """Quita item del inventario"""
     if "inventario" not in data:
         return False
-    
+
     for item in data["inventario"]:
         if item["id"] == item_id:
-            if item.get("cantidad", 0) >= cantidad:
-                item["cantidad"] -= cantidad
+            current = item.get("cantidad", 1)
+            if current >= cantidad:
+                item["cantidad"] = current - cantidad
                 # Limpiar si está vacío
                 if item["cantidad"] <= 0:
                     data["inventario"].remove(item)

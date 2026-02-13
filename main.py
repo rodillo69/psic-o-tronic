@@ -10,7 +10,7 @@ import ujson
 from machine import Pin, I2C
 
 # Módulos propios
-from lcd_chars import load_custom_chars, convert_text, get_lives_display
+from lcd_chars import load_custom_chars, convert_text, get_lives_display, wrap_text
 from config import (
     is_wifi_configured, get_wifi_config, load_stats, get_stats_summary,
     clear_wifi_config
@@ -245,19 +245,36 @@ class PsicOTronic:
     _last_btn_time = 0
     
     def _get_input(self):
-        """Lee input de botones con debounce"""
+        """Lee input de botones con debounce, incluyendo combo UP+DOWN para BACK"""
         now = time.ticks_ms()
         if time.ticks_diff(now, self._last_btn_time) < DEBOUNCE_MS:
             return None
-        
+
+        up_pressed = self.btn_up.value() == 0
+        down_pressed = self.btn_down.value() == 0
+        select_pressed = self.btn_select.value() == 0
+
+        if not up_pressed and not down_pressed and not select_pressed:
+            return None
+
+        # Si UP o DOWN presionado, esperar para detectar combo
+        if up_pressed or down_pressed:
+            time.sleep(0.05)
+            up_pressed = self.btn_up.value() == 0
+            down_pressed = self.btn_down.value() == 0
+
+            if up_pressed and down_pressed:
+                self._last_btn_time = now
+                return 'BACK'
+
         cmd = None
-        if self.btn_up.value() == 0:
-            cmd = 'UP'
-        elif self.btn_down.value() == 0:
-            cmd = 'DOWN'
-        elif self.btn_select.value() == 0:
+        if select_pressed:
             cmd = 'SELECT'
-        
+        elif up_pressed:
+            cmd = 'UP'
+        elif down_pressed:
+            cmd = 'DOWN'
+
         if cmd:
             self._last_btn_time = now
         return cmd
@@ -314,24 +331,8 @@ class PsicOTronic:
         self._lcd_render()
     
     def _wrap_text(self, text, width=20):
-        """Divide texto en líneas"""
-        words = convert_text(text).split()
-        lines = []
-        current = ""
-        for word in words:
-            if not current:
-                # Primera palabra
-                current = word
-            elif len(current) + 1 + len(word) <= width:
-                # Cabe en la línea actual
-                current += " " + word
-            else:
-                # Nueva línea
-                lines.append(current)
-                current = word
-        if current:
-            lines.append(current)
-        return lines if lines else [""]
+        """Divide texto en lineas (delegado a lcd_chars.wrap_text)"""
+        return wrap_text(text, width)
     
     # === EFECTOS ===
     
@@ -534,7 +535,12 @@ class PsicOTronic:
             idx = start + i
             if idx < len(options):
                 prefix = ">" if idx == self.menu_idx else " "
-                self._lcd_put(1, i + 1, prefix + options[idx][:18])
+                label = options[idx]
+                if idx != self.menu_idx and len(label) > 18:
+                    label = label[:17] + "~"
+                else:
+                    label = label[:18]
+                self._lcd_put(1, i + 1, prefix + label)
 
         # Indicadores de scroll con LEDs
         can_up = self.menu_idx > 0
@@ -547,6 +553,9 @@ class PsicOTronic:
         elif key == 'DOWN':
             self.menu_idx = (self.menu_idx + 1) % len(options)
             play_sound('click')
+        elif key == 'BACK':
+            self.state = State.INTRO
+            self.frame = 0
         elif key == 'SELECT':
             play_sound('beep')
             selected = options[self.menu_idx]
@@ -595,6 +604,9 @@ class PsicOTronic:
             self.mode_idx -= 1
         elif key == 'DOWN' and can_down:
             self.mode_idx += 1
+        elif key == 'BACK':
+            self.state = State.MENU
+            self.menu_idx = 0
         elif key == 'SELECT':
             if self.mode_idx == 2:  # Mi Consulta
                 self._launch_career_mode()
@@ -638,6 +650,8 @@ class PsicOTronic:
             self.player_count += 1
         elif key == 'DOWN' and self.player_count > 1:
             self.player_count -= 1
+        elif key == 'BACK':
+            self.state = State.MODE_SELECT
         elif key == 'SELECT':
             mode = MODE_SURVIVAL if self.mode_idx == 1 else MODE_CLASSIC
             if mode == MODE_SURVIVAL:
@@ -661,6 +675,8 @@ class PsicOTronic:
             self.quota_idx = min(len(self.quota_options) - 1, self.quota_idx + 1)
         elif key == 'DOWN':
             self.quota_idx = max(0, self.quota_idx - 1)
+        elif key == 'BACK':
+            self.state = State.PLAYER_SELECT
         elif key == 'SELECT':
             self._start_game(MODE_CLASSIC)
     
@@ -826,14 +842,28 @@ class PsicOTronic:
             text = convert_text(opts[i])
             prefix = ">" if i == self.session.selected_option else " "
             
-            # Scroll horizontal para opción seleccionada larga
-            if i == self.session.selected_option and len(text) > 18:
-                offset = max(0, (self.opt_scroll // 3) - 2) % (len(text) - 17 + 3)
-                if offset > len(text) - 18:
-                    offset = len(text) - 18
-                text = text[offset:offset + 18]
-            
-            self._lcd_put(0, i, f"{prefix}{text[:19]}")
+            # Scroll horizontal para opcion larga (19 chars con prefijo)
+            max_visible = 19
+            if i == self.session.selected_option and len(text) > max_visible:
+                wait_frames = 8
+                scroll_speed = 3
+                max_offset = len(text) - max_visible
+
+                if self.opt_scroll < wait_frames:
+                    offset = 0
+                else:
+                    offset = ((self.opt_scroll - wait_frames) // scroll_speed) % (max_offset + wait_frames)
+                    if offset > max_offset:
+                        offset = 0  # Volver al inicio despues de pausa
+
+                text = text[offset:offset + max_visible]
+            else:
+                if len(text) > max_visible:
+                    text = text[:max_visible - 1] + "~"
+                else:
+                    text = text[:max_visible]
+
+            self._lcd_put(0, i, "%s%s" % (prefix, text))
         
         can_up = self.session.selected_option > 0
         can_down = self.session.selected_option < len(opts) - 1
@@ -1068,10 +1098,10 @@ class PsicOTronic:
         self._lcd_put(0, 3, f"Racha: {summary['streak']}")
         
         self._leds_select_only()
-        
-        if key == 'SELECT':
+
+        if key == 'SELECT' or key == 'BACK':
             self.state = State.MENU
-    
+
     def _update_how_to_play(self, key):
         """Estado: Cómo jugar"""
         pages = [
@@ -1182,10 +1212,13 @@ class PsicOTronic:
             self.help_page -= 1
         elif key == 'DOWN' and can_down:
             self.help_page += 1
+        elif key == 'BACK':
+            self.help_page = 0
+            self.state = State.MENU
         elif key == 'SELECT':
             self.help_page = 0
             self.state = State.MENU
-    
+
     def _update_wifi_settings(self, key):
         """Estado: Configuración WiFi"""
         ssid, _ = get_wifi_config()
@@ -1201,7 +1234,7 @@ class PsicOTronic:
         
         self._leds_menu()
         
-        if key == 'UP':
+        if key == 'UP' or key == 'BACK':
             self.state = State.MENU
         elif key == 'SELECT':
             # No borrar config, solo abrir portal
@@ -1272,10 +1305,13 @@ class PsicOTronic:
             self.help_page -= 1
         elif key == 'DOWN' and can_down:
             self.help_page += 1
+        elif key == 'BACK':
+            self.help_page = 0
+            self.state = State.MENU
         elif key == 'SELECT':
             self.help_page = 0
             self.state = State.MENU
-    
+
     def _update_pause(self, key):
         """Estado: Menú de pausa"""
         # Validar que existe sesión (prevenir crash)

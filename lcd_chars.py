@@ -236,6 +236,36 @@ def get_lives_display(current_lives, max_lives=3):
     return filled + empty
 
 
+def wrap_text(text, width=20):
+    """Divide texto en lineas respetando palabras.
+
+    Args:
+        text: String a dividir
+        width: Ancho maximo por linea (default 20 para LCD)
+
+    Returns:
+        Lista de strings, cada uno cabe en width chars
+    """
+    text = convert_text(str(text))
+    words = text.split()
+    lines = []
+    current = ""
+
+    for word in words:
+        if not current:
+            current = word
+        elif len(current) + 1 + len(word) <= width:
+            current += " " + word
+        else:
+            lines.append(current)
+            current = word
+
+    if current:
+        lines.append(current)
+
+    return lines if lines else [""]
+
+
 # Test standalone
 if __name__ == "__main__":
     print("=== Test LCD Chars ===")

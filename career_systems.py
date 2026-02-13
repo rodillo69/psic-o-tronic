@@ -1909,6 +1909,9 @@ def check_logros(data):
     stats = data["jugador"]["stats"]
     economia = data.get("economia", {})
     
+    # Betting stats
+    apuestas = data.get("apuestas", {})
+
     valores = {
         "pacientes_curados": stats.get("pacientes_curados", 0),
         "pacientes_abandonados": stats.get("pacientes_abandonados", 0),
@@ -1927,27 +1930,34 @@ def check_logros(data):
         "curas_perfectas": stats.get("curas_perfectas", 0),
         "curas_rapidas": stats.get("curas_rapidas", 0),
         "pacientes_dificiles": stats.get("pacientes_dificiles", 0),
+        # Betting stats for LOGROS_APUESTAS
+        "apuestas_totales": apuestas.get("totales", 0),
+        "ganancias_apuestas": apuestas.get("ganancias_total", 0),
+        "perdidas_apuestas": apuestas.get("perdidas_total", 0),
+        "racha_apuestas_max": apuestas.get("racha_max", 0),
     }
-    
-    for logro_id, logro in LOGROS.items():
-        if logro_id in desbloqueados:
-            continue
-        
-        campo, operador, valor = logro["condicion"]
-        actual = valores.get(campo, 0)
-        
-        cumple = False
-        if operador == ">=":
-            cumple = actual >= valor
-        elif operador == "==":
-            cumple = actual == valor
-        elif operador == ">":
-            cumple = actual > valor
-        
-        if cumple:
-            desbloqueados.append(logro_id)
-            nuevos.append(logro_id)
-    
+
+    # Check main achievements and betting achievements
+    for logros_dict in (LOGROS, LOGROS_APUESTAS):
+        for logro_id, logro in logros_dict.items():
+            if logro_id in desbloqueados:
+                continue
+
+            campo, operador, valor = logro["condicion"]
+            actual = valores.get(campo, 0)
+
+            cumple = False
+            if operador == ">=":
+                cumple = actual >= valor
+            elif operador == "==":
+                cumple = actual == valor
+            elif operador == ">":
+                cumple = actual > valor
+
+            if cumple:
+                desbloqueados.append(logro_id)
+                nuevos.append(logro_id)
+
     return nuevos
 
 
@@ -1955,7 +1965,7 @@ def aplicar_recompensa_logro(data, logro_id):
     """Aplica la recompensa de un logro"""
     from career_data import add_dinero, add_item
     
-    logro = LOGROS.get(logro_id)
+    logro = LOGROS.get(logro_id) or LOGROS_APUESTAS.get(logro_id)
     if not logro:
         return None
     
