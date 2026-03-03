@@ -429,7 +429,7 @@ Responde SOLO con JSON (sin markdown):
 
 LIMITES:
 - mensaje: max 120 caracteres
-- cada opcion: max 18 caracteres
+- cada opcion: max 38 caracteres
 - feedback_ok: max 60 caracteres (2 lineas de 20)
 - feedback_mal: max 60 caracteres (2 lineas de 20)
 
@@ -441,7 +441,7 @@ Espanol de Espana con acentos. NUNCA signos al inicio de frase."""
         mensaje = create_mensaje_template()
         mensaje["paciente_id"] = paciente["id"]
         mensaje["contenido"] = result.get("mensaje", "Hola doctor...")[:120]
-        mensaje["opciones"] = [o[:18] for o in result.get("opciones", ["?", "?", "?", "?"])[:4]]
+        mensaje["opciones"] = [o[:38] for o in result.get("opciones", ["?", "?", "?", "?"])[:4]]
         mensaje["correcta"] = result.get("correcta", 0) % 4
         mensaje["feedback_correcto"] = result.get("feedback_ok", "Bien hecho")[:60]
         mensaje["feedback_incorrecto"] = result.get("feedback_mal", "Eso fue mal")[:60]
@@ -509,7 +509,7 @@ Responde SOLO con JSON (sin markdown):
 
 LIMITES:
 - mensaje: max 120 caracteres
-- cada opcion: max 18 caracteres
+- cada opcion: max 38 caracteres
 - feedback: max 25 caracteres
 
 Espanol de Espana. NUNCA signos al inicio."""
@@ -520,7 +520,7 @@ Espanol de Espana. NUNCA signos al inicio."""
         mensaje = create_mensaje_template()
         mensaje["paciente_id"] = paciente["id"]
         mensaje["contenido"] = result.get("mensaje", "Doctor!")[:120]
-        mensaje["opciones"] = [o[:18] for o in result.get("opciones", ["?", "?", "?", "?"])[:4]]
+        mensaje["opciones"] = [o[:38] for o in result.get("opciones", ["?", "?", "?", "?"])[:4]]
         mensaje["correcta"] = result.get("correcta", 0) % 4
         mensaje["feedback_correcto"] = result.get("feedback_ok", "Ok")[:25]
         mensaje["feedback_incorrecto"] = result.get("feedback_mal", "Mal")[:25]
@@ -577,7 +577,7 @@ Responde SOLO con JSON (sin markdown):
 
 LIMITES:
 - mensaje: max 120 caracteres
-- cada opcion: max 18 caracteres
+- cada opcion: max 38 caracteres
 - feedback: max 25 caracteres
 
 Espanol de Espana. NUNCA signos al inicio."""
@@ -588,7 +588,7 @@ Espanol de Espana. NUNCA signos al inicio."""
         mensaje = create_mensaje_template()
         mensaje["paciente_id"] = paciente["id"]
         mensaje["contenido"] = result.get("mensaje", "Hola doctor...")[:120]
-        mensaje["opciones"] = [o[:18] for o in result.get("opciones", ["?", "?", "?", "?"])[:4]]
+        mensaje["opciones"] = [o[:38] for o in result.get("opciones", ["?", "?", "?", "?"])[:4]]
         mensaje["correcta"] = result.get("correcta", 0) % 4
         mensaje["feedback_correcto"] = result.get("feedback_ok", "Ok")[:25]
         mensaje["feedback_incorrecto"] = result.get("feedback_mal", "Mal")[:25]

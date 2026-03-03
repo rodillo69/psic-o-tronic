@@ -854,7 +854,7 @@ class PsicOTronic:
                 else:
                     offset = ((self.opt_scroll - wait_frames) // scroll_speed) % (max_offset + wait_frames)
                     if offset > max_offset:
-                        offset = 0  # Volver al inicio despues de pausa
+                        offset = 0
 
                 text = text[offset:offset + max_visible]
             else:
