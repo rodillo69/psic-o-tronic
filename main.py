@@ -744,7 +744,8 @@ class PsicOTronic:
             modifier = self.session.get_prompt_modifier()
             self.session.scenario = self.oracle.get_scenario(
                 mode=self.session.mode,
-                story_modifier=modifier
+                story_modifier=modifier,
+                difficulty=self.session.get_difficulty()
             )
             
             # Comprobar error
@@ -846,7 +847,7 @@ class PsicOTronic:
             max_visible = 19
             if i == self.session.selected_option and len(text) > max_visible:
                 wait_frames = 8
-                scroll_speed = 3
+                scroll_speed = 2
                 max_offset = len(text) - max_visible
 
                 if self.opt_scroll < wait_frames:

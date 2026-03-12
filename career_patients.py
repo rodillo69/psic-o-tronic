@@ -376,15 +376,15 @@ def generate_session_message(paciente, historial_respuestas, nivel_dificultad=1)
         else:
             continuidad_text = f"\nCONTINUIDAD OBLIGATORIA: El paciente DEBE quejarse de que '{ultima_opcion}' fue DESASTROSO. Cuenta que le salio mal."
     
-    # Dificultad de las opciones - progresiva según nivel
+    # Dificultad de las opciones - progresiva segun nivel
     if nivel_dificultad <= 2:
-        diff_text = "FACIL: La opcion correcta es OBVIA, la mas graciosa/absurda. Las otras 3 son aburridas."
+        diff_text = "FACIL: La correcta RESPONDE DIRECTAMENTE al problema usando palabras del paciente. Las incorrectas son graciosas pero genericas, no conectan con el problema especifico."
     elif nivel_dificultad <= 4:
-        diff_text = "MEDIA: La correcta es la mas creativa, hay que pensar un poco."
+        diff_text = "MEDIA: La correcta es la que mejor RESUELVE el problema con logica retorcida. 1 incorrecta es generica, 1 contraproducente, 1 absurda sin relacion."
     elif nivel_dificultad <= 6:
-        diff_text = "DIFICIL: Todas las opciones son malas, la correcta es la mas sutil."
+        diff_text = "DIFICIL: Todas las opciones parecen conectadas. La correcta tiene la CONSECUENCIA mas logica. Las incorrectas suenan bien pero no resuelven nada."
     else:
-        diff_text = "EXTREMA: Todas parecen igual de malas, la correcta es la mas retorcida."
+        diff_text = "EXTREMA: Las 4 opciones son coherentes. La correcta se distingue solo por un detalle sutil de logica practica. Solo un jugador atento la vera."
 
     contexto = _clean_for_prompt(paciente.get("contexto_ia", ""))
 

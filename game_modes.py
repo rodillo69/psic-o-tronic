@@ -81,6 +81,34 @@ class GameSession:
     def get_prompt_modifier(self):
         """Obtiene modificador de prompt según el modo"""
         return ""
+
+    def get_difficulty(self):
+        """Calcula dificultad progresiva (1-10) segun avance"""
+        score = self.total_score
+        if self.mode == MODE_CLASSIC:
+            # Progresa segun casos resueltos vs cuota
+            if score <= 1:
+                return 1
+            elif score <= 3:
+                return 3
+            elif score <= 5:
+                return 5
+            elif score <= 8:
+                return 7
+            else:
+                return 9
+        else:  # Survival
+            # Progresa mas rapido en survival
+            if score <= 1:
+                return 2
+            elif score <= 3:
+                return 4
+            elif score <= 6:
+                return 6
+            elif score <= 10:
+                return 8
+            else:
+                return 10
     
     def process_answer(self, selected_idx):
         """

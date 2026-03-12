@@ -73,22 +73,23 @@ Las 4 opciones DEBEN ser respuestas directas al problema planteado en el mensaje
 Si el paciente pregunta "que hago con X", las 4 opciones son consejos sobre X.
 Aunque las respuestas sean absurdas, deben tener SENTIDO como respuesta a la pregunta.
 
-EJEMPLO BUENO:
+EJEMPLO BUENO (correcta=2):
 Mensaje: "Doctor, mi suegra me odia. Como me la quito de encima?"
-Opciones: ["Casate con ella", "Finge tu muerte", "Culpala del incendio", "Mudala a Cuenca"]
-(Las 4 son BREVES, max 40 chars, y responden a COMO quitarse a la suegra)
+Opciones: ["Vete al gym", "Compra flores", "Mudala a Cuenca", "Hazte vegano"]
+(La correcta "Mudala a Cuenca" RESUELVE el problema de la suegra directamente.
+Las otras son genericas y no resuelven lo de la suegra)
 
 EJEMPLO MALO:
 Mensaje: "Doctor, mi suegra me odia. Como me la quito de encima?"
-Opciones: ["Compra un gato", "Vete al gym", "Lee un libro", "Hazte vegano"]
-(Las opciones NO tienen relacion con la suegra)
+Opciones: ["Mudala lejos", "Echala de casa", "Cambia cerraduras", "Finge mudanza"]
+(Las 4 resuelven el problema igual de bien - IMPOSIBLE distinguir la correcta)
 
-# REGLAS DE DIFICULTAD
+# REGLAS DE DIFICULTAD (BASE)
 1. LAS 4 OPCIONES DEBEN SER TODAS MALAS/PSICOTICAS - ninguna debe parecer "buena"
-2. La opcion correcta es la MAS RETORCIDA pero de forma SUTIL
-3. Las incorrectas son: una demasiado suave, otra contraproducente, otra absurda
-4. El jugador debe DUDAR entre al menos 2-3 opciones
-5. Mezcla el orden: la correcta puede estar en cualquier posicion (0,1,2,3)
+2. La opcion correcta es la que MEJOR RESUELVE el problema, con LOGICA INTERNA retorcida
+3. El jugador debe poder RAZONAR cual es la correcta, no adivinar al azar
+4. Mezcla el orden: la correcta puede estar en cualquier posicion (0,1,2,3)
+5. El nivel de dificultad especifico se indica mas abajo
 
 # OTRAS REGLAS
 - OPCIONES: Cada opcion debe tener MAXIMO 40 caracteres. Respuestas cortas y directas.
@@ -127,52 +128,85 @@ class GeminiOracle:
             result = result.replace(old, new)
         return result
     
-    def _build_prompt(self, mode="classic", story_modifier=""):
+    def _get_difficulty_rules(self, difficulty):
+        """Genera reglas de dificultad progresiva"""
+        if difficulty <= 2:
+            return """# NIVEL: FACIL
+- La correcta RESPONDE DIRECTAMENTE al problema usando palabras del paciente
+- Las incorrectas son graciosas pero GENERICAS, no conectan con el problema especifico
+- PISTA SUTIL: la correcta menciona algo concreto del mensaje del paciente"""
+        elif difficulty <= 4:
+            return """# NIVEL: MEDIO
+- La correcta es la que mejor RESUELVE el problema, aunque sea retorcida
+- 1 incorrecta es generica, 1 es contraproducente, 1 es absurda sin relacion
+- PISTA SUTIL: la correcta tiene mas logica interna con la situacion"""
+        elif difficulty <= 6:
+            return """# NIVEL: DIFICIL
+- Todas las opciones parecen conectadas con el problema
+- La correcta es la que tiene la CONSECUENCIA mas logica (aunque retorcida)
+- Las incorrectas suenan bien pero si piensas, no resuelven nada"""
+        elif difficulty <= 8:
+            return """# NIVEL: MUY DIFICIL
+- Las 4 opciones son coherentes y parecen resolver el problema
+- La correcta es SUTILMENTE mas practica que las otras
+- Las incorrectas tienen un fallo logico que solo se ve si piensas bien"""
+        else:
+            return """# NIVEL: EXTREMO
+- Las 4 opciones son igual de retorcidas y coherentes
+- La correcta se distingue solo por un detalle muy sutil de logica
+- Solo un jugador muy atento vera la diferencia"""
+
+    def _build_prompt(self, mode="classic", story_modifier="", difficulty=5):
         """
         Construye el prompt completo.
-        
+
         Args:
             mode: "classic", "survival", "story"
             story_modifier: Modificador adicional para modo historia
-            
+            difficulty: Nivel de dificultad 1-10
+
         Returns:
             String con prompt completo
         """
         # Limpiar historial de acentos
         clean_history = [self._clean_for_prompt(t) for t in self.history]
         history_txt = ", ".join(clean_history) if clean_history else "ninguno"
-        
+
         mode_text = ""
         if mode == "survival":
             mode_text = "\n# MODO SURVIVAL\nLos casos deben ser variados e impredecibles.\n"
         elif mode == "story":
             mode_text = story_modifier  # Ya viene limpio de story_data.py
-        
+
+        diff_rules = self._get_difficulty_rules(difficulty)
+
         prompt = (
             PROMPT_BASE +
             mode_text +
+            diff_rules + "\n\n" +
             f"# EVITA REPETIR\nTemas ya usados: [{history_txt}]\n\n"
             "# FORMATO DE SALIDA\n"
             "Responde SOLO con este JSON (sin markdown, sin ```):\n" +
             JSON_TEMPLATE
         )
-        
+
         return prompt
     
-    def get_scenario(self, mode="classic", story_modifier=""):
+    def get_scenario(self, mode="classic", story_modifier="", difficulty=5):
         """
         Obtiene un nuevo escenario de Gemini.
 
         Args:
             mode: Modo de juego
             story_modifier: Modificador para modo historia
+            difficulty: Nivel de dificultad 1-10
 
         Returns:
             Dict con escenario o escenario de error
         """
         gc.collect()
 
-        prompt = self._build_prompt(mode, story_modifier)
+        prompt = self._build_prompt(mode, story_modifier, difficulty)
 
         payload = {
             "contents": [{
@@ -349,9 +383,9 @@ def get_oracle():
     return _oracle
 
 
-def get_scenario(mode="classic", story_modifier=""):
+def get_scenario(mode="classic", story_modifier="", difficulty=5):
     """Helper para obtener escenario"""
-    return get_oracle().get_scenario(mode, story_modifier)
+    return get_oracle().get_scenario(mode, story_modifier, difficulty)
 
 
 # Test standalone
