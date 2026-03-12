@@ -1,6 +1,6 @@
 {
-    "version": "2.13.1",
-    "changelog": "Fix: Scroll lateral opciones ahora funciona correctamente",
+    "version": "2.14.0",
+    "changelog": "Dificultad progresiva + scroll mas rapido",
     "mandatory": true,
     "size_kb": 112,
     "files": [
